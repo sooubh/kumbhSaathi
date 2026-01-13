@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings - Pilgrim Assistance</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f8fafc",
+                        "surface-light": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            min-height: 100dvh;
+        }
+        .active-pill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light min-h-screen text-slate-900 font-display">
+<header class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200">
+<div class="flex items-center p-4 justify-between max-w-md mx-auto">
+<div class="flex size-10 shrink-0 items-center justify-center cursor-pointer hover:bg-slate-100 rounded-full transition-colors">
+<span class="material-symbols-outlined text-2xl text-slate-900">arrow_back_ios_new</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-tight flex-1 text-center pr-10 text-slate-900">Settings</h2>
+</div>
+</header>
+<main class="max-w-md mx-auto pb-12">
+<section class="mt-4">
+<h3 class="text-slate-500 text-[11px] font-bold uppercase tracking-widest px-4 pb-2 pt-4">Appearance</h3>
+<div class="bg-surface-light mx-0 sm:mx-4 sm:rounded-xl overflow-hidden shadow-sm p-4">
+<div class="flex p-1 bg-slate-100 rounded-lg">
+<button class="flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-md transition-all bg-white shadow-sm text-primary">
+<span class="material-symbols-outlined text-xl active-pill">light_mode</span>
+<span class="text-xs font-bold">Light</span>
+</button>
+<button class="flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-md transition-colors text-slate-500 hover:text-slate-700">
+<span class="material-symbols-outlined text-xl">dark_mode</span>
+<span class="text-xs font-semibold">Dark</span>
+</button>
+<button class="flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-md transition-colors text-slate-500 hover:text-slate-700">
+<span class="material-symbols-outlined text-xl">settings_brightness</span>
+<span class="text-xs font-semibold">System</span>
+</button>
+</div>
+</div>
+</section>
+<section class="mt-6">
+<h3 class="text-slate-500 text-[11px] font-bold uppercase tracking-widest px-4 pb-2 pt-4">Language</h3>
+<div class="bg-surface-light mx-0 sm:mx-4 sm:rounded-xl overflow-hidden shadow-sm">
+<div class="flex items-center gap-4 px-4 min-h-[56px] justify-between cursor-pointer active:bg-slate-50">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-blue-50 text-primary border border-blue-100 shrink-0 size-10">
+<span class="material-symbols-outlined">translate</span>
+</div>
+<p class="text-base font-semibold text-slate-900 truncate">App Language</p>
+</div>
+<div class="shrink-0 flex items-center gap-2">
+<p class="text-base font-medium text-primary">English</p>
+<span class="material-symbols-outlined text-slate-400 text-lg">chevron_right</span>
+</div>
+</div>
+</div>
+</section>
+<section class="mt-6">
+<h3 class="text-slate-500 text-[11px] font-bold uppercase tracking-widest px-4 pb-2 pt-4">Notifications</h3>
+<div class="bg-surface-light mx-0 sm:mx-4 sm:rounded-xl overflow-hidden shadow-sm">
+<div class="flex items-center gap-4 px-4 min-h-[64px] justify-between border-b border-slate-100">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-orange-50 text-orange-600 border border-orange-100 shrink-0 size-10">
+<span class="material-symbols-outlined">groups</span>
+</div>
+<div>
+<p class="text-base font-semibold text-slate-900 truncate">Crowd Level Alerts</p>
+<p class="text-xs text-slate-500">Real-time Ghat updates</p>
+</div>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[31px] w-[51px] cursor-pointer items-center rounded-full border-none bg-slate-200 p-0.5 transition-colors has-[:checked]:bg-green-500">
+<input checked="" class="invisible absolute peer" type="checkbox"/>
+<div class="h-full w-[27px] rounded-full bg-white shadow-md transform transition-transform peer-checked:translate-x-5"></div>
+</label>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 min-h-[56px] justify-between">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 shrink-0 size-10">
+<span class="material-symbols-outlined">event_available</span>
+</div>
+<p class="text-base font-semibold text-slate-900 truncate">Ritual Reminders</p>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[31px] w-[51px] cursor-pointer items-center rounded-full border-none bg-slate-200 p-0.5 transition-colors has-[:checked]:bg-green-500">
+<input class="invisible absolute peer" type="checkbox"/>
+<div class="h-full w-[27px] rounded-full bg-white shadow-md transform transition-transform peer-checked:translate-x-5"></div>
+</label>
+</div>
+</div>
+</div>
+</section>
+<section class="mt-6">
+<h3 class="text-slate-500 text-[11px] font-bold uppercase tracking-widest px-4 pb-2 pt-4">Accessibility</h3>
+<div class="bg-surface-light mx-0 sm:mx-4 sm:rounded-xl overflow-hidden shadow-sm">
+<div class="flex items-center gap-4 px-4 min-h-[56px] justify-between border-b border-slate-100 cursor-pointer active:bg-slate-50">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-purple-50 text-purple-600 border border-purple-100 shrink-0 size-10">
+<span class="material-symbols-outlined">format_size</span>
+</div>
+<p class="text-base font-semibold text-slate-900 truncate">Large Text Size</p>
+</div>
+<div class="shrink-0 flex items-center gap-2">
+<p class="text-sm text-slate-500">Standard</p>
+<span class="material-symbols-outlined text-slate-400 text-lg">chevron_right</span>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 min-h-[56px] justify-between">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-amber-50 text-amber-600 border border-amber-100 shrink-0 size-10">
+<span class="material-symbols-outlined">contrast</span>
+</div>
+<p class="text-base font-semibold text-slate-900 truncate">High Contrast Mode</p>
+</div>
+<div class="shrink-0">
+<label class="relative flex h-[31px] w-[51px] cursor-pointer items-center rounded-full border-none bg-slate-200 p-0.5 transition-colors has-[:checked]:bg-green-500">
+<input class="invisible absolute peer" type="checkbox"/>
+<div class="h-full w-[27px] rounded-full bg-white shadow-md transform transition-transform peer-checked:translate-x-5"></div>
+</label>
+</div>
+</div>
+</div>
+</section>
+<section class="mt-6">
+<h3 class="text-slate-500 text-[11px] font-bold uppercase tracking-widest px-4 pb-2 pt-4">Security &amp; Privacy</h3>
+<div class="bg-surface-light mx-0 sm:mx-4 sm:rounded-xl overflow-hidden shadow-sm">
+<div class="flex items-center gap-4 px-4 min-h-[56px] justify-between border-b border-slate-100 cursor-pointer active:bg-slate-50">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-rose-50 text-rose-600 border border-rose-100 shrink-0 size-10">
+<span class="material-symbols-outlined">privacy_tip</span>
+</div>
+<p class="text-base font-semibold text-slate-900 truncate">Profile Privacy</p>
+</div>
+<div class="shrink-0">
+<span class="material-symbols-outlined text-slate-400 text-lg">chevron_right</span>
+</div>
+</div>
+<div class="flex items-center gap-4 px-4 min-h-[56px] justify-between cursor-pointer active:bg-slate-50">
+<div class="flex items-center gap-4">
+<div class="flex items-center justify-center rounded-lg bg-sky-50 text-sky-600 border border-sky-100 shrink-0 size-10">
+<span class="material-symbols-outlined">cloud_upload</span>
+</div>
+<p class="text-base font-semibold text-slate-900 truncate">Data Backup</p>
+</div>
+<div class="shrink-0 flex items-center gap-2">
+<p class="text-sm font-medium text-emerald-600">Last: Today 10:45 AM</p>
+<span class="material-symbols-outlined text-slate-400 text-lg">chevron_right</span>
+</div>
+</div>
+</div>
+</section>
+<footer class="mt-12 text-center px-4">
+<button class="w-full bg-red-50 text-red-600 border border-red-100 font-bold py-3.5 rounded-xl active:scale-[0.98] transition-transform shadow-sm">
+                Logout from Device
+            </button>
+<p class="mt-8 text-slate-400 text-xs font-medium">Pilgrim Companion App v2.4.1 (Build 890)</p>
+<p class="mt-1 text-slate-400 text-[10px] uppercase tracking-widest font-bold">Kumbh Mela 2025 • Official Assistance</p>
+</footer>
+</main>
+
+</body></html>

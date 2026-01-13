@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Emergency Help Dark</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "emergency": "#ff4d4d",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .pulse-red {
+            box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.7);
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(255, 77, 77, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+        }
+        body {
+            min-height: 100dvh;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark font-display text-slate-50 flex flex-col">
+<header class="flex items-center bg-background-dark p-4 justify-between sticky top-0 z-50">
+<div class="flex items-center gap-2">
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-white">arrow_back</span>
+</button>
+</div>
+<h2 class="text-white text-lg font-bold leading-tight flex-1 text-center">Emergency Mode</h2>
+<div class="flex size-10 items-center justify-end">
+<span class="material-symbols-outlined text-emergency animate-pulse">emergency</span>
+</div>
+</header>
+<main class="flex-1 flex flex-col px-4 max-w-md mx-auto w-full">
+<div class="text-center pb-4 pt-2">
+<h1 class="text-white text-2xl font-black leading-tight tracking-tight uppercase">Near Sangam Gate 4</h1>
+<p class="text-slate-400 text-sm font-medium mt-1">Nearest Help Desk: 250m (2 mins walk)</p>
+</div>
+<div class="relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl border-2 border-slate-800 mb-6">
+<div class="w-full h-full bg-center bg-no-repeat bg-cover flex items-center justify-center" style='background-image: linear-gradient(rgba(16, 25, 34, 0.6), rgba(16, 25, 34, 0.6)), url("https://lh3.googleusercontent.com/aida-public/AB6AXuC78HzW3Hjg6QI7qAZoqQ6v_ZwySk6js2vE_befUGD3qFuqGfBxvcWyryocI3XP4nGm1E_8JGUrobIwT7te63UVkCMZZ7nJhskf8FpGvGpBqcDwtbVFRRAL7ZvR3CWqOVfAimSsexd8Iw8Sq8koObSs-bi4N-csixl0pJbxgkbOlYJywSJW57pmmunzK3GhCat3uNzutq6-RLILPrXy4lP_OIHtB5yhPOU9ZuU7M4_6s_-sCzs9kJQ4Owx2qqMFhDupuEGnZW5-8Kw");'>
+<div class="relative flex items-center justify-center">
+<div class="absolute size-8 bg-primary/40 rounded-full animate-ping"></div>
+<div class="size-4 bg-primary rounded-full border-2 border-white"></div>
+</div>
+<div class="absolute bottom-4 right-4 flex flex-col items-center">
+<div class="bg-emergency p-2 rounded-full shadow-lg">
+<span class="material-symbols-outlined text-white text-3xl transform -rotate-45">navigation</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-center justify-center py-6">
+<button class="pulse-red size-48 rounded-full bg-emergency text-white flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 transition-transform border-8 border-background-dark">
+<span class="material-symbols-outlined text-5xl">sos</span>
+<span class="text-xl font-black tracking-tighter">HELP ME</span>
+<span class="text-[10px] font-bold opacity-80 uppercase">Hold for 3s</span>
+</button>
+</div>
+<div class="flex justify-center gap-3 py-4">
+<div class="bg-slate-800 rounded-full px-3 py-1.5 flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-green-500">signal_cellular_4_bar</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Signal: Strong</span>
+</div>
+<div class="bg-slate-800 rounded-full px-3 py-1.5 flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-primary">location_on</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">GPS: Accurate</span>
+</div>
+</div>
+<div class="bg-slate-800/50 p-4 rounded-xl flex items-center gap-4 border border-slate-700 mb-6">
+<div class="size-12 rounded-full bg-emergency/20 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-emergency text-2xl">local_police</span>
+</div>
+<div class="flex-1">
+<h3 class="font-bold text-white">Police Station Sector 5</h3>
+<p class="text-xs text-slate-400">Head North-East along the main path</p>
+</div>
+<span class="material-symbols-outlined text-slate-500">chevron_right</span>
+</div>
+<div class="grid grid-cols-2 gap-4 pb-8">
+<button class="flex items-center justify-center gap-2 bg-primary text-white rounded-xl h-14 px-4 font-bold shadow-lg hover:bg-primary/90 transition-colors">
+<span class="material-symbols-outlined">share_location</span>
+<span class="truncate">Share Location</span>
+</button>
+<button class="flex items-center justify-center gap-2 bg-slate-700 text-white rounded-xl h-14 px-4 font-bold shadow-lg border border-slate-600">
+<span class="material-symbols-outlined">call</span>
+<span class="truncate">Call Mela HQ</span>
+</button>
+</div>
+</main>
+<div class="px-4 pb-8">
+<div class="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-center gap-3">
+<span class="material-symbols-outlined text-green-500">check_circle</span>
+<p class="text-xs text-green-400 font-medium leading-tight">
+                Location shared with family and authorities. Help is on the way.
+            </p>
+</div>
+</div>
+
+</body></html>

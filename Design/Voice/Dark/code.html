@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#0a0a0a",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
+        }
+        .pulse-ring {
+            position: absolute;
+            border-radius: 9999px;
+            background-color: theme('colors.primary');
+            z-index: 0;
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden">
+<div class="relative flex h-screen w-full flex-col bg-background-light dark:bg-background-dark group/design-root overflow-x-hidden">
+<div class="flex items-center bg-transparent px-4 pt-6 pb-2 justify-between z-10">
+<div class="text-slate-900 dark:text-white flex size-12 shrink-0 items-center cursor-pointer">
+<span class="material-symbols-outlined !text-[28px]">close</span>
+</div>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center">Voice Assistant</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex size-12 cursor-pointer items-center justify-center rounded-full bg-transparent text-slate-900 dark:text-white">
+<span class="material-symbols-outlined !text-[28px]">info</span>
+</button>
+</div>
+</div>
+<div class="flex-1 flex flex-col items-center justify-start px-4 pt-8">
+<div class="mb-16">
+<h1 class="text-slate-900 dark:text-white text-[32px] font-bold leading-tight text-center">Listening...</h1>
+<p class="text-slate-500 dark:text-slate-400 text-center mt-2">I'm ready for your question</p>
+</div>
+<div class="relative flex items-center justify-center mb-20">
+<div class="pulse-ring w-72 h-72 opacity-[0.03]"></div>
+<div class="pulse-ring w-56 h-56 opacity-[0.08]"></div>
+<div class="pulse-ring w-40 h-40 opacity-[0.15]"></div>
+<div class="relative z-10">
+<button class="flex cursor-pointer items-center justify-center rounded-full h-[140px] w-[140px] bg-primary text-white shadow-[0_0_40px_rgba(19,127,236,0.4)] transition-transform active:scale-95">
+<span class="material-symbols-outlined !text-[56px]">mic</span>
+</button>
+</div>
+</div>
+<div class="w-full max-w-md">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium uppercase tracking-wider text-center mb-4">Try saying</p>
+<div class="flex gap-3 px-2 flex-wrap justify-center">
+<div class="flex h-11 items-center justify-center gap-x-2 rounded-full bg-primary/10 border border-primary/20 pl-5 pr-5 cursor-pointer hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined text-primary !text-[18px]">medical_services</span>
+<p class="text-slate-900 dark:text-white text-[15px] font-medium">Nearest medical help</p>
+</div>
+<div class="flex h-11 items-center justify-center gap-x-2 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/50 pl-5 pr-5 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+<span class="material-symbols-outlined text-slate-500 dark:text-slate-400 !text-[18px]">water_drop</span>
+<p class="text-slate-900 dark:text-white text-[15px] font-medium">Find nearest ghat</p>
+</div>
+<div class="flex h-11 items-center justify-center gap-x-2 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/50 pl-5 pr-5 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+<span class="material-symbols-outlined text-slate-500 dark:text-slate-400 !text-[18px]">search</span>
+<p class="text-slate-900 dark:text-white text-[15px] font-medium">Lost &amp; Found</p>
+</div>
+<div class="flex h-11 items-center justify-center gap-x-2 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/50 pl-5 pr-5 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+<span class="material-symbols-outlined text-slate-500 dark:text-slate-400 !text-[18px]">policy</span>
+<p class="text-slate-900 dark:text-white text-[15px] font-medium">Police help</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 pb-10 bg-white/5 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200/50 dark:border-white/10">
+<div class="flex justify-between items-center gap-3">
+<button class="flex-1 flex flex-col items-center justify-center p-4 rounded-2xl bg-red-500 text-white shadow-lg shadow-red-500/20 active:bg-red-600 transition-colors">
+<span class="material-symbols-outlined mb-1 !text-[24px]">emergency</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">SOS</span>
+</button>
+<button class="flex-1 flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white active:bg-slate-200 dark:active:bg-white/20 transition-colors">
+<span class="material-symbols-outlined mb-1 !text-[24px]">keyboard</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">Type</span>
+</button>
+<button class="flex-1 flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white active:bg-slate-200 dark:active:bg-white/20 transition-colors">
+<span class="material-symbols-outlined mb-1 !text-[24px]">translate</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">Hindi</span>
+</button>
+</div>
+<div class="w-32 h-1 bg-slate-300 dark:bg-white/20 rounded-full mx-auto mt-6"></div>
+</div>
+</div>
+
+</body></html>

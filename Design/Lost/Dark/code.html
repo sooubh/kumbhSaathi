@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Report Lost Person - Kumbh Mela Assistance</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-white font-display min-h-screen">
+<!-- Top App Bar -->
+<div class="sticky top-0 z-50 flex items-center bg-background-light dark:bg-background-dark border-b border-[#324d67]/30 p-4 justify-between">
+<div class="text-white flex size-12 shrink-0 items-center justify-start cursor-pointer" data-icon="arrow_back">
+<span class="material-symbols-outlined text-white text-[24px]">arrow_back</span>
+</div>
+<h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Report Lost Person</h2>
+<div class="size-12 shrink-0"></div> <!-- Spacer for centering -->
+</div>
+<main class="max-w-[480px] mx-auto pb-24">
+<!-- Headline Section -->
+<div class="px-4 pt-6 pb-2">
+<h3 class="text-white tracking-light text-2xl font-bold leading-tight">Emergency Details</h3>
+<p class="text-white/70 text-base font-normal leading-normal pt-1">This data is sent immediately to Kumbh Mela authorities for rapid response.</p>
+</div>
+<!-- Form Fields -->
+<div class="flex flex-col gap-2">
+<!-- Name Input -->
+<div class="px-4 py-3">
+<label class="flex flex-col w-full">
+<p class="text-white text-base font-medium leading-normal pb-2">Name of Lost Person</p>
+<input class="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary border border-[#324d67] bg-[#192633] h-14 placeholder:text-[#92adc9]/60 px-4 text-base font-normal" placeholder="Enter full name" value=""/>
+</label>
+</div>
+<!-- Age & Gender Row -->
+<div class="flex px-4 py-3 gap-4">
+<label class="flex flex-col flex-1">
+<p class="text-white text-base font-medium leading-normal pb-2">Age</p>
+<input class="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary border border-[#324d67] bg-[#192633] h-14 placeholder:text-[#92adc9]/60 px-4 text-base font-normal" placeholder="Years" type="number" value=""/>
+</label>
+<label class="flex flex-col flex-[1.5]">
+<p class="text-white text-base font-medium leading-normal pb-2">Gender</p>
+<select class="form-select flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary border border-[#324d67] bg-[#192633] h-14 px-4 text-base font-normal appearance-none">
+<option disabled="" selected="" value="">Select</option>
+<option>Male</option>
+<option>Female</option>
+<option>Other</option>
+</select>
+</label>
+</div>
+<!-- Last Seen Place -->
+<div class="px-4 py-3">
+<label class="flex flex-col w-full">
+<p class="text-white text-base font-medium leading-normal pb-2">Last Seen Place</p>
+<div class="relative">
+<input class="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary border border-[#324d67] bg-[#192633] h-14 placeholder:text-[#92adc9]/60 pl-10 pr-4 text-base font-normal" placeholder="e.g. Sangam Ghat, Sector 4" value=""/>
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-primary">location_on</span>
+</div>
+</label>
+</div>
+<!-- Photo Upload Area -->
+<div class="px-4 py-3">
+<p class="text-white text-base font-medium leading-normal pb-2">Upload Recent Photo</p>
+<div class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-[#324d67] bg-[#192633] rounded-xl cursor-pointer hover:bg-primary/5 transition-colors group">
+<div class="flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-primary text-5xl mb-2 group-hover:scale-110 transition-transform">add_a_photo</span>
+<p class="text-white font-medium">Click to capture or upload</p>
+<p class="text-white/50 text-xs mt-1">Maximum file size: 5MB</p>
+</div>
+</div>
+</div>
+<!-- Voice Recording -->
+<div class="px-4 py-3">
+<p class="text-white text-base font-medium leading-normal pb-2">Describe the Person</p>
+<button class="flex items-center justify-center gap-3 w-full h-14 bg-primary/20 border border-primary/30 rounded-lg text-primary font-semibold hover:bg-primary/30 active:scale-95 transition-all">
+<span class="material-symbols-outlined">mic</span>
+                    Record Voice Description
+                </button>
+<p class="text-white/50 text-xs mt-2 italic px-1">Describe height, clothing color, and identifying marks.</p>
+</div>
+</div>
+<!-- Sticky Bottom Submit Button -->
+<div class="fixed bottom-0 left-0 right-0 p-4 bg-background-dark/80 backdrop-blur-md border-t border-[#324d67]/30">
+<div class="max-w-[480px] mx-auto">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl text-lg shadow-lg active:scale-[0.98] transition-all">
+                    SUBMIT REPORT
+                </button>
+</div>
+</div>
+</main>
+<!-- Empty spacer for scroll-under effect -->
+<div class="h-10"></div>
+</body></html>
