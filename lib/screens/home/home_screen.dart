@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/models/ghat.dart';
+import '../../data/providers/data_providers.dart';
 import '../../widgets/common/action_card.dart';
 import '../../widgets/cards/live_status_card.dart';
 import '../lost/report_lost_screen.dart';
@@ -11,6 +12,8 @@ import '../emergency/sos_screen.dart';
 import '../voice/voice_assistant_screen.dart';
 import '../profile/profile_screen.dart';
 import '../settings/settings_screen.dart';
+import '../facilities/add_facility_screen.dart';
+import '../../core/services/firebase_service.dart';
 
 /// Home screen / Dashboard
 class HomeScreen extends ConsumerWidget {
@@ -19,6 +22,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ghatsAsync = ref.watch(ghatsStreamProvider);
 
     return Scaffold(
       backgroundColor: isDark
@@ -37,14 +41,34 @@ class HomeScreen extends ConsumerWidget {
                 child: Column(
                   children: [
                     const SizedBox(height: 8),
-                    // Live Status Card
-                    LiveStatusCard(
-                      locationName: 'Sangam Ghat Live',
-                      crowdLevel: CrowdLevel.high,
-                      percentage: 85,
-                      suggestion: 'Avoid main entry point',
-                      onTap: () =>
-                          _navigateTo(context, const GhatNavigationScreen()),
+                    // Live Status Card - now with Firestore data
+                    ghatsAsync.when(
+                      loading: () => _buildLoadingCard(isDark),
+                      error: (e, _) => _buildDefaultStatusCard(context),
+                      data: (ghats) {
+                        if (ghats.isEmpty) {
+                          return _buildDefaultStatusCard(context);
+                        }
+                        // Find the most crowded ghat
+                        final mostCrowdedGhat = ghats.reduce(
+                          (a, b) =>
+                              a.crowdLevel.index > b.crowdLevel.index ? a : b,
+                        );
+                        return LiveStatusCard(
+                          locationName: '${mostCrowdedGhat.name} Live',
+                          crowdLevel: mostCrowdedGhat.crowdLevel,
+                          percentage: _getCrowdPercentage(
+                            mostCrowdedGhat.crowdLevel,
+                          ),
+                          suggestion: _getSuggestion(
+                            mostCrowdedGhat.crowdLevel,
+                          ),
+                          onTap: () => _navigateTo(
+                            context,
+                            const GhatNavigationScreen(),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
                     // Action Grid
@@ -66,6 +90,49 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildLoadingCard(bool isDark) {
+    return Container(
+      height: 100,
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.cardDark : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _buildDefaultStatusCard(BuildContext context) {
+    return LiveStatusCard(
+      locationName: 'Sangam Ghat Live',
+      crowdLevel: CrowdLevel.medium,
+      percentage: 50,
+      suggestion: 'Loading live data...',
+      onTap: () => _navigateTo(context, const GhatNavigationScreen()),
+    );
+  }
+
+  int _getCrowdPercentage(CrowdLevel level) {
+    switch (level) {
+      case CrowdLevel.low:
+        return 30;
+      case CrowdLevel.medium:
+        return 55;
+      case CrowdLevel.high:
+        return 85;
+    }
+  }
+
+  String _getSuggestion(CrowdLevel level) {
+    switch (level) {
+      case CrowdLevel.low:
+        return 'Good time for darshan';
+      case CrowdLevel.medium:
+        return 'Moderate crowd expected';
+      case CrowdLevel.high:
+        return 'Avoid main entry point';
+    }
+  }
+
   Widget _buildAppBar(BuildContext context, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -79,20 +146,14 @@ class HomeScreen extends ConsumerWidget {
           // Logo & Title
           Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryOrange.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.primaryOrange.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.temple_hindu,
-                  color: AppColors.primaryOrange,
-                  size: 24,
+              // App Logo
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  width: 44,
+                  height: 44,
+                  fit: BoxFit.contain,
                 ),
               ),
               const SizedBox(width: 12),
@@ -178,6 +239,13 @@ class HomeScreen extends ConsumerWidget {
           iconColor: AppColors.primaryBlue,
           onTap: () => _navigateTo(context, const GhatNavigationScreen()),
         ),
+        if (FirebaseService.isLoggedIn)
+          ActionCard(
+            title: 'Add Place',
+            icon: Icons.add_location_alt,
+            iconColor: Colors.orange,
+            onTap: () => _navigateTo(context, const AddFacilityScreen()),
+          ),
       ],
     );
   }

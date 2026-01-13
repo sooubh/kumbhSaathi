@@ -1,32 +1,104 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/services/firebase_service.dart';
+import '../../data/repositories/emergency_repository.dart';
+import '../../providers/location_provider.dart';
 import '../../widgets/common/sos_button.dart';
 import '../../widgets/common/primary_button.dart';
 
 /// Emergency SOS Screen
-class SOSScreen extends StatefulWidget {
-  const SOSScreen({super.key});
+class SOSScreen extends ConsumerStatefulWidget {
+  final bool showBackButton;
+
+  const SOSScreen({super.key, this.showBackButton = true});
 
   @override
-  State<SOSScreen> createState() => _SOSScreenState();
+  ConsumerState<SOSScreen> createState() => _SOSScreenState();
 }
 
-class _SOSScreenState extends State<SOSScreen> {
+class _SOSScreenState extends ConsumerState<SOSScreen> {
   bool _locationShared = false;
-  final String _currentLocation = 'Near Sangam Gate 4';
-  final String _nearestHelp = '250m (2 mins walk)';
+  bool _isLoading = false;
+  String? _activeAlertId;
+  final _repository = EmergencyRepository();
+
+  String get _currentLocation {
+    final locationAsync = ref.read(locationProvider);
+    return locationAsync.when(
+      loading: () => 'Fetching location...',
+      error: (_, __) => 'Location unavailable',
+      data: (pos) => pos != null
+          ? 'Lat: ${pos.latitude.toStringAsFixed(4)}, Lng: ${pos.longitude.toStringAsFixed(4)}'
+          : 'Near Sangam Gate 4',
+    );
+  }
 
   Future<void> _shareLocation() async {
-    setState(() => _locationShared = true);
-    // TODO: Implement actual location sharing
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Location shared with family and authorities'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+    setState(() {
+      _isLoading = true;
+      _locationShared = true;
+    });
+
+    try {
+      final locationAsync = ref.read(locationProvider);
+      Position? position = locationAsync.valueOrNull;
+
+      // Send SOS alert to Firestore
+      final alertId = await _repository.sendSOSAlert(
+        userId: FirebaseService.currentUserId ?? 'anonymous',
+        userName: 'Pilgrim', // TODO: Get from user profile
+        latitude: position?.latitude ?? 20.0063,
+        longitude: position?.longitude ?? 73.7897,
+        locationDescription: _currentLocation,
+      );
+
+      setState(() => _activeAlertId = alertId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('SOS Alert sent! Help is on the way.'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send alert: ${e.toString()}'),
+            backgroundColor: AppColors.emergency,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _cancelAlert() async {
+    if (_activeAlertId == null) return;
+
+    try {
+      await _repository.cancelAlert(_activeAlertId!);
+      setState(() {
+        _activeAlertId = null;
+        _locationShared = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('SOS Alert cancelled')));
+      }
+    } catch (e) {
+      // Ignore errors on cancel
+    }
   }
 
   Future<void> _callMelaHQ() async {
@@ -61,9 +133,16 @@ class _SOSScreenState extends State<SOSScreen> {
           ],
         ),
         content: const Text(
-          'Your location has been shared with emergency services and your emergency contacts. Help is on the way.',
+          'Your location has been shared with emergency services and Mela authorities. Help is on the way.',
         ),
         actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _cancelAlert();
+            },
+            child: const Text('Cancel Alert'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
@@ -76,6 +155,7 @@ class _SOSScreenState extends State<SOSScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final locationAsync = ref.watch(locationProvider);
 
     return Scaffold(
       backgroundColor: isDark
@@ -84,10 +164,12 @@ class _SOSScreenState extends State<SOSScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF333333),
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: widget.showBackButton
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text('Emergency Mode'),
         centerTitle: true,
         actions: [
@@ -106,21 +188,36 @@ class _SOSScreenState extends State<SOSScreen> {
           children: [
             // Location Header
             const SizedBox(height: 8),
-            Text(
-              _currentLocation.toUpperCase(),
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: isDark
-                    ? AppColors.textDarkDark
-                    : AppColors.textDarkLight,
-                letterSpacing: -0.5,
+            locationAsync.when(
+              loading: () => const CircularProgressIndicator(),
+              error: (_, __) => Text(
+                'LOCATION UNAVAILABLE',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.emergency,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
+              data: (position) => Text(
+                position != null
+                    ? 'YOUR LOCATION DETECTED'
+                    : 'NEAR SANGAM AREA',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: isDark
+                      ? AppColors.textDarkDark
+                      : AppColors.textDarkLight,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
-              'Nearest Help Desk: $_nearestHelp',
+              'Nearest Help Desk: 250m (2 mins walk)',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -225,12 +322,18 @@ class _SOSScreenState extends State<SOSScreen> {
             const SizedBox(height: 32),
 
             // SOS Button
-            SOSButton(
-              onPressed: _onSOSPressed,
-              onLongPress: _onSOSLongPress,
-              holdDurationSeconds: AppConstants.sosHoldDuration,
-              size: 200,
-            ),
+            if (_isLoading)
+              const SizedBox(
+                height: 200,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              SOSButton(
+                onPressed: _onSOSPressed,
+                onLongPress: _onSOSLongPress,
+                holdDurationSeconds: AppConstants.sosHoldDuration,
+                size: 200,
+              ),
             const SizedBox(height: 24),
 
             // Status Indicators
@@ -244,11 +347,27 @@ class _SOSScreenState extends State<SOSScreen> {
                   isDark: isDark,
                 ),
                 const SizedBox(width: 12),
-                _StatusBadge(
-                  icon: Icons.location_on,
-                  text: 'GPS: ACCURATE',
-                  color: AppColors.primaryBlue,
-                  isDark: isDark,
+                locationAsync.when(
+                  loading: () => _StatusBadge(
+                    icon: Icons.location_searching,
+                    text: 'GPS: SEARCHING',
+                    color: AppColors.warning,
+                    isDark: isDark,
+                  ),
+                  error: (_, __) => _StatusBadge(
+                    icon: Icons.location_off,
+                    text: 'GPS: UNAVAILABLE',
+                    color: AppColors.emergency,
+                    isDark: isDark,
+                  ),
+                  data: (pos) => _StatusBadge(
+                    icon: Icons.location_on,
+                    text: pos != null ? 'GPS: ACCURATE' : 'GPS: APPROXIMATE',
+                    color: pos != null
+                        ? AppColors.primaryBlue
+                        : AppColors.warning,
+                    isDark: isDark,
+                  ),
                 ),
               ],
             ),
@@ -363,13 +482,25 @@ class _SOSScreenState extends State<SOSScreen> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'Location shared with family and authorities. Help is on the way.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green[800],
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SOS Alert Sent Successfully!',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.green[800],
+                            ),
+                          ),
+                          Text(
+                            'Authorities have been notified. Stay calm.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

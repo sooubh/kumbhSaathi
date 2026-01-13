@@ -32,6 +32,13 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
+  # Firebase
+  firebase_core: ^2.27.0
+  firebase_auth: ^4.17.8
+  cloud_firestore: ^4.15.8
+  firebase_storage: ^11.6.9
+  google_sign_in: ^6.1.6
+
   # Utilities
   url_launcher: ^6.2.6
   permission_handler: ^11.3.1

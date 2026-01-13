@@ -1,26 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/services/firebase_service.dart';
+import '../../data/models/lost_person.dart';
+import '../../data/repositories/lost_person_repository.dart';
 import '../../widgets/common/primary_button.dart';
 import '../../widgets/common/input_field.dart';
 
 /// Report lost person form screen
-class ReportLostScreen extends StatefulWidget {
-  const ReportLostScreen({super.key});
+class ReportLostScreen extends ConsumerStatefulWidget {
+  final bool showBackButton;
+
+  const ReportLostScreen({super.key, this.showBackButton = true});
 
   @override
-  State<ReportLostScreen> createState() => _ReportLostScreenState();
+  ConsumerState<ReportLostScreen> createState() => _ReportLostScreenState();
 }
 
-class _ReportLostScreenState extends State<ReportLostScreen> {
+class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _ageController = TextEditingController();
   final _locationController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _guardianNameController = TextEditingController();
+  final _guardianPhoneController = TextEditingController();
   String? _selectedGender;
   XFile? _selectedImage;
   bool _isLoading = false;
 
+  final _repository = LostPersonRepository();
   final List<String> _genderOptions = ['Male', 'Female', 'Other'];
 
   @override
@@ -28,6 +38,9 @@ class _ReportLostScreenState extends State<ReportLostScreen> {
     _nameController.dispose();
     _ageController.dispose();
     _locationController.dispose();
+    _descriptionController.dispose();
+    _guardianNameController.dispose();
+    _guardianPhoneController.dispose();
     super.dispose();
   }
 
@@ -51,19 +64,60 @@ class _ReportLostScreenState extends State<ReportLostScreen> {
 
     setState(() => _isLoading = true);
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-
-    setState(() => _isLoading = false);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Report submitted successfully'),
-          backgroundColor: AppColors.success,
-        ),
+    try {
+      // Create lost person object
+      final lostPerson = LostPerson(
+        id: '', // Will be set by Firestore
+        name: _nameController.text.trim(),
+        age: int.tryParse(_ageController.text) ?? 0,
+        gender: _selectedGender ?? 'Unknown',
+        lastSeenLocation: _locationController.text.trim(),
+        description: _descriptionController.text.trim(),
+        reportedAt: DateTime.now(),
+        reportedBy: FirebaseService.currentUserId ?? 'anonymous',
+        status: LostPersonStatus.missing,
+        guardianName: _guardianNameController.text.trim().isNotEmpty
+            ? _guardianNameController.text.trim()
+            : null,
+        guardianPhone: _guardianPhoneController.text.trim().isNotEmpty
+            ? _guardianPhoneController.text.trim()
+            : null,
       );
-      Navigator.pop(context);
+
+      // Save to Firestore
+      await _repository.reportLostPerson(lostPerson);
+
+      // TODO: Upload photo to Firebase Storage if selected
+      // if (_selectedImage != null) {
+      //   final photoUrl = await _uploadPhoto(docId);
+      //   await _repository.updatePhotoUrl(docId, photoUrl);
+      // }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Report submitted successfully! Authorities have been notified.',
+            ),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to submit report: ${e.toString()}'),
+            backgroundColor: AppColors.emergency,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -78,10 +132,12 @@ class _ReportLostScreenState extends State<ReportLostScreen> {
       appBar: AppBar(
         backgroundColor: isDark ? AppColors.backgroundDark : Colors.white,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: widget.showBackButton
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text('Report Lost Person'),
         centerTitle: true,
         bottom: PreferredSize(
@@ -162,7 +218,6 @@ class _ReportLostScreenState extends State<ReportLostScreen> {
                           child: SelectField<String>(
                             label: 'Gender',
                             hint: 'Select',
-                            value: _selectedGender,
                             items: _genderOptions
                                 .map(
                                   (g) => DropdownMenuItem(
@@ -186,6 +241,24 @@ class _ReportLostScreenState extends State<ReportLostScreen> {
                       hint: 'e.g. Sangam Ghat, Sector 4',
                       controller: _locationController,
                       prefixIcon: Icons.location_on,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Guardian Info
+                    InputField(
+                      label: 'Guardian Name (Optional)',
+                      hint: 'Your name or family member',
+                      controller: _guardianNameController,
+                      prefixIcon: Icons.person,
+                    ),
+                    const SizedBox(height: 16),
+
+                    InputField(
+                      label: 'Guardian Phone (Optional)',
+                      hint: '+91 XXXXX XXXXX',
+                      controller: _guardianPhoneController,
+                      prefixIcon: Icons.phone,
+                      keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 24),
 
@@ -220,49 +293,58 @@ class _ReportLostScreenState extends State<ReportLostScreen> {
                           ),
                         ),
                         child: _selectedImage != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(14),
-                                child: Image.asset(
-                                  _selectedImage!.path,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      _buildUploadPlaceholder(isDark),
-                                ),
+                            ? Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Image.asset(
+                                      _selectedImage!.path,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      errorBuilder: (_, __, ___) =>
+                                          _buildUploadPlaceholder(isDark),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: GestureDetector(
+                                      onTap: () =>
+                                          setState(() => _selectedImage = null),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black54,
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               )
                             : _buildUploadPlaceholder(isDark),
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Voice Description
-                    Text(
-                      'Describe the Person',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.textDarkDark
-                            : AppColors.textDarkLight,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        // TODO: Implement voice recording
-                      },
-                      icon: const Icon(Icons.mic),
-                      label: const Text('Record Voice Description'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 56),
-                        side: BorderSide(color: AppColors.primaryBlue),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+                    // Description field
+                    InputField(
+                      label: 'Description',
+                      hint: 'Describe height, clothing, identifying marks...',
+                      controller: _descriptionController,
+                      maxLines: 3,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Describe height, clothing color, and identifying marks.',
+                      'Provide details like height, clothing color, and any identifying marks.',
                       style: TextStyle(
                         fontSize: 12,
                         fontStyle: FontStyle.italic,

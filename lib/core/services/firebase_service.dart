@@ -1,0 +1,79 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../../firebase_options.dart';
+
+/// Firebase service for database operations
+class FirebaseService {
+  static FirebaseFirestore get firestore => FirebaseFirestore.instance;
+  static FirebaseAuth get auth => FirebaseAuth.instance;
+  static FirebaseStorage get storage => FirebaseStorage.instance;
+  static final GoogleSignIn googleSignIn = GoogleSignIn();
+
+  /// Initialize Firebase with platform-specific options
+  static Future<void> initialize() async {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    // Enable offline persistence for Firestore
+    firestore.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  }
+
+  /// Get current user ID
+  static String? get currentUserId => auth.currentUser?.uid;
+
+  /// Check if user is logged in
+  static bool get isLoggedIn => auth.currentUser != null;
+
+  /// Sign in anonymously (for quick access without registration)
+  static Future<UserCredential> signInAnonymously() async {
+    return await auth.signInAnonymously();
+  }
+
+  /// Sign in with Google
+  static Future<UserCredential?> signInWithGoogle() async {
+    try {
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) return null;
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Create a new credential
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the OAuth credential
+      return await auth.signInWithCredential(credential);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Sign out
+  static Future<void> signOut() async {
+    await googleSignIn.signOut();
+    await auth.signOut();
+  }
+}
+
+/// Collection references
+class FirestoreCollections {
+  static const String users = 'users';
+  static const String lostPersons = 'lost_persons';
+  static const String ghats = 'ghats';
+  static const String facilities = 'facilities';
+  static const String emergencyAlerts = 'emergency_alerts';
+  static const String settings = 'settings';
+}

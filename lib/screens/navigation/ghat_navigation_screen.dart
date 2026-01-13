@@ -1,53 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/ghat.dart';
+import '../../data/providers/data_providers.dart';
 import '../../widgets/cards/ghat_card.dart';
 
 /// Ghat navigation screen with map and nearby ghats
-class GhatNavigationScreen extends StatefulWidget {
-  const GhatNavigationScreen({super.key});
+class GhatNavigationScreen extends ConsumerStatefulWidget {
+  final bool showBackButton;
+
+  const GhatNavigationScreen({super.key, this.showBackButton = true});
 
   @override
-  State<GhatNavigationScreen> createState() => _GhatNavigationScreenState();
+  ConsumerState<GhatNavigationScreen> createState() =>
+      _GhatNavigationScreenState();
 }
 
-class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
+class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'All Ghats';
   final List<String> _filters = [
     'All Ghats',
-    'Emergency',
-    'Medical',
-    'Parking',
-  ];
-
-  // Sample data
-  final List<Ghat> _nearbyGhats = [
-    Ghat(
-      id: '1',
-      name: 'Triveni Sangam',
-      nameHindi: 'त्रिवेणी संगम',
-      description: 'Main confluence point',
-      latitude: 20.0063,
-      longitude: 73.7897,
-      distanceKm: 1.2,
-      walkTimeMinutes: 15,
-      crowdLevel: CrowdLevel.high,
-      bestTimeStart: '4:00 AM',
-      bestTimeEnd: '6:00 AM',
-    ),
-    Ghat(
-      id: '2',
-      name: 'Dashashwamedh',
-      nameHindi: 'दशाश्वमेध',
-      description: 'Popular ghat',
-      latitude: 20.0100,
-      longitude: 73.7900,
-      distanceKm: 0.6,
-      walkTimeMinutes: 8,
-      crowdLevel: CrowdLevel.low,
-      isGoodForBathing: true,
-    ),
+    'Low Crowd',
+    'Medium Crowd',
+    'High Crowd',
   ];
 
   @override
@@ -56,9 +32,37 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
     super.dispose();
   }
 
+  List<Ghat> _filterGhats(List<Ghat> ghats) {
+    List<Ghat> filtered = ghats;
+
+    // Filter by crowd level
+    if (_selectedFilter == 'Low Crowd') {
+      filtered = ghats.where((g) => g.crowdLevel == CrowdLevel.low).toList();
+    } else if (_selectedFilter == 'Medium Crowd') {
+      filtered = ghats.where((g) => g.crowdLevel == CrowdLevel.medium).toList();
+    } else if (_selectedFilter == 'High Crowd') {
+      filtered = ghats.where((g) => g.crowdLevel == CrowdLevel.high).toList();
+    }
+
+    // Filter by search query
+    final query = _searchController.text.toLowerCase();
+    if (query.isNotEmpty) {
+      filtered = filtered
+          .where(
+            (g) =>
+                g.name.toLowerCase().contains(query) ||
+                (g.nameHindi?.toLowerCase().contains(query) ?? false),
+          )
+          .toList();
+    }
+
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ghatsAsync = ref.watch(ghatsStreamProvider);
 
     return Scaffold(
       backgroundColor: isDark
@@ -79,26 +83,43 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
                     color: isDark
                         ? AppColors.cardDark
                         : const Color(0xFFF1F5F9),
-                    image: const DecorationImage(
-                      image: NetworkImage(
-                        'https://maps.googleapis.com/maps/api/staticmap?center=20.0063,73.7897&zoom=14&size=600x400&maptype=roadmap',
-                      ),
-                      fit: BoxFit.cover,
-                      opacity: 0.6,
-                    ),
                   ),
                   child: _buildMapPlaceholder(isDark),
                 ),
-                // Crowd labels
-                Positioned(
-                  top: 40,
-                  left: 20,
-                  child: _buildCrowdLabel('HIGH CROWD', AppColors.emergency),
-                ),
-                Positioned(
-                  top: 100,
-                  right: 40,
-                  child: _buildCrowdLabel('LOW CROWD', AppColors.success),
+                // Crowd labels from Firestore data
+                ghatsAsync.when(
+                  loading: () => const SizedBox(),
+                  error: (_, __) => const SizedBox(),
+                  data: (ghats) {
+                    final highCrowd = ghats
+                        .where((g) => g.crowdLevel == CrowdLevel.high)
+                        .length;
+                    final lowCrowd = ghats
+                        .where((g) => g.crowdLevel == CrowdLevel.low)
+                        .length;
+                    return Stack(
+                      children: [
+                        if (highCrowd > 0)
+                          Positioned(
+                            top: 40,
+                            left: 20,
+                            child: _buildCrowdLabel(
+                              '$highCrowd HIGH CROWD',
+                              AppColors.emergency,
+                            ),
+                          ),
+                        if (lowCrowd > 0)
+                          Positioned(
+                            top: 100,
+                            right: 40,
+                            child: _buildCrowdLabel(
+                              '$lowCrowd LOW CROWD',
+                              AppColors.success,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
                 // Map controls
                 Positioned(
@@ -109,9 +130,61 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
               ],
             ),
           ),
-          // Bottom Sheet
-          _buildBottomSheet(context, isDark),
+          // Bottom Sheet with Firestore data
+          ghatsAsync.when(
+            loading: () => _buildLoadingBottomSheet(isDark),
+            error: (e, _) => _buildErrorBottomSheet(isDark, e.toString()),
+            data: (ghats) =>
+                _buildBottomSheet(context, isDark, _filterGhats(ghats)),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingBottomSheet(bool isDark) {
+    return Container(
+      height: 280,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.backgroundDark : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _buildErrorBottomSheet(bool isDark, String error) {
+    return Container(
+      height: 280,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.backgroundDark : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: AppColors.emergency),
+            const SizedBox(height: 16),
+            Text(
+              'Failed to load ghats',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? AppColors.textDarkDark
+                    : AppColors.textDarkLight,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => ref.refresh(ghatsStreamProvider),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -146,31 +219,32 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
             children: [
               Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.cardDark
-                            : const Color(0xFFF9FAFB),
-                        shape: BoxShape.circle,
-                        border: Border.all(
+                  if (widget.showBackButton)
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
                           color: isDark
-                              ? AppColors.borderDark
-                              : const Color(0xFFE5E7EB),
+                              ? AppColors.cardDark
+                              : const Color(0xFFF9FAFB),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark
+                                ? AppColors.borderDark
+                                : const Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.arrow_back,
+                          color: isDark
+                              ? AppColors.textDarkDark
+                              : AppColors.textDarkLight,
                         ),
                       ),
-                      child: Icon(
-                        Icons.arrow_back,
-                        color: isDark
-                            ? AppColors.textDarkDark
-                            : AppColors.textDarkLight,
-                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
+                  if (widget.showBackButton) const SizedBox(width: 12),
                   Text(
                     'Ghat Navigation',
                     style: TextStyle(
@@ -207,7 +281,7 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'OFFLINE',
+                          'SYNCED',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -219,39 +293,42 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
                   ),
                   const SizedBox(width: 8),
                   // SOS button
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.emergency,
-                      borderRadius: BorderRadius.circular(100),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.emergency.withValues(alpha: 0.4),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.emergency_share,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'SOS',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                  GestureDetector(
+                    onTap: () => Navigator.pushNamed(context, '/sos'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.emergency,
+                        borderRadius: BorderRadius.circular(100),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.emergency.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.emergency_share,
+                            size: 16,
                             color: Colors.white,
                           ),
-                        ),
-                      ],
+                          SizedBox(width: 4),
+                          Text(
+                            'SOS',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -281,8 +358,9 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
+                    onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
-                      hintText: 'Search Ghats, Parking, Toilets...',
+                      hintText: 'Search Ghats...',
                       hintStyle: TextStyle(
                         color: isDark
                             ? AppColors.textMutedDark
@@ -513,7 +591,11 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
     );
   }
 
-  Widget _buildBottomSheet(BuildContext context, bool isDark) {
+  Widget _buildBottomSheet(
+    BuildContext context,
+    bool isDark,
+    List<Ghat> ghats,
+  ) {
     return Container(
       padding: const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 24),
       decoration: BoxDecoration(
@@ -550,7 +632,7 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Nearby Ghats',
+                'Nearby Ghats (${ghats.length})',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -583,19 +665,30 @@ class _GhatNavigationScreenState extends State<GhatNavigationScreen> {
           // Ghat cards horizontal list
           SizedBox(
             height: 200,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _nearbyGhats.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
-              itemBuilder: (context, index) {
-                return GhatCard(
-                  ghat: _nearbyGhats[index],
-                  onNavigate: () {
-                    // TODO: Start navigation
-                  },
-                );
-              },
-            ),
+            child: ghats.isEmpty
+                ? Center(
+                    child: Text(
+                      'No ghats found',
+                      style: TextStyle(
+                        color: isDark
+                            ? AppColors.textMutedDark
+                            : AppColors.textMutedLight,
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: ghats.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      return GhatCard(
+                        ghat: ghats[index],
+                        onNavigate: () {
+                          // TODO: Start navigation
+                        },
+                      );
+                    },
+                  ),
           ),
           const SizedBox(height: 16),
           // Home indicator

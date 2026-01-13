@@ -1,4 +1,6 @@
 /// Model for a nearby facility
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Facility {
   final String id;
   final String name;
@@ -13,6 +15,9 @@ class Facility {
   final String? closeTime;
   final String? phone;
   final String? address;
+  final String status; // 'approved' or 'pending'
+  final String? submittedBy;
+  final DateTime? submittedAt;
 
   Facility({
     required this.id,
@@ -28,6 +33,9 @@ class Facility {
     this.closeTime,
     this.phone,
     this.address,
+    this.status = 'approved',
+    this.submittedBy,
+    this.submittedAt,
   });
 
   factory Facility.fromJson(Map<String, dynamic> json) {
@@ -48,6 +56,11 @@ class Facility {
       closeTime: json['closeTime'] as String?,
       phone: json['phone'] as String?,
       address: json['address'] as String?,
+      status: json['status'] as String? ?? 'approved',
+      submittedBy: json['submittedBy'] as String?,
+      submittedAt: json['submittedAt'] != null
+          ? (json['submittedAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -66,6 +79,11 @@ class Facility {
       'closeTime': closeTime,
       'phone': phone,
       'address': address,
+      'status': status,
+      'submittedBy': submittedBy,
+      'submittedAt': submittedAt != null
+          ? Timestamp.fromDate(submittedAt!)
+          : null,
     };
   }
 }

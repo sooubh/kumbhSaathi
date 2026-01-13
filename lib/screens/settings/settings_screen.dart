@@ -2,10 +2,46 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../admin/admin_dashboard_screen.dart';
+import '../auth/login_screen.dart';
 
 /// Settings screen
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
+
+  void _logout(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await ref.read(authProvider.notifier).signOut();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (_) => false,
+                );
+              }
+            },
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: AppColors.emergency),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -216,15 +252,47 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
 
+            const SizedBox(height: 24),
+
+            // Admin Section - Protected
+            if (ref.watch(authProvider).isAdmin) ...[
+              _SectionHeader(title: 'Admin Panel', isDark: isDark),
+              _SettingsCard(
+                isDark: isDark,
+                children: [
+                  _SettingsTile(
+                    icon: Icons.dashboard,
+                    iconBgColor: AppColors.primaryOrange.withValues(alpha: 0.2),
+                    iconColor: AppColors.primaryOrange,
+                    title: 'Admin Dashboard',
+                    subtitle: 'Manage app content and settings',
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: isDark
+                          ? AppColors.textMutedDark
+                          : AppColors.textMutedLight,
+                      size: 18,
+                    ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdminDashboardScreen(),
+                      ),
+                    ),
+                    isDark: isDark,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+            ],
+
             const SizedBox(height: 48),
 
             // Logout Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: GestureDetector(
-                onTap: () {
-                  // TODO: Logout
-                },
+                onTap: () => _logout(context, ref),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),

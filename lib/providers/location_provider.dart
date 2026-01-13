@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
-/// Location state
+/// Location state with when-like functionality
 class LocationState {
   final Position? currentPosition;
   final bool isLoading;
@@ -20,11 +20,32 @@ class LocationState {
       error: error,
     );
   }
+
+  /// Helper method similar to AsyncValue.when
+  T when<T>({
+    required T Function() loading,
+    required T Function(Object error, StackTrace stackTrace) error,
+    required T Function(Position? position) data,
+  }) {
+    if (isLoading) {
+      return loading();
+    } else if (this.error != null) {
+      return error(this.error!, StackTrace.current);
+    } else {
+      return data(currentPosition);
+    }
+  }
+
+  /// Get position or null
+  Position? get valueOrNull => currentPosition;
 }
 
 /// Location state notifier
 class LocationNotifier extends StateNotifier<LocationState> {
-  LocationNotifier() : super(LocationState());
+  LocationNotifier() : super(LocationState()) {
+    // Auto-fetch location on init
+    getCurrentLocation();
+  }
 
   Future<bool> checkPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();

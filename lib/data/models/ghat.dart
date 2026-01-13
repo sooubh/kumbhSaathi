@@ -2,7 +2,7 @@
 class Ghat {
   final String id;
   final String name;
-  final String nameHindi;
+  final String? nameHindi;
   final String description;
   final double latitude;
   final double longitude;
@@ -18,13 +18,13 @@ class Ghat {
   Ghat({
     required this.id,
     required this.name,
-    required this.nameHindi,
+    this.nameHindi,
     required this.description,
     required this.latitude,
     required this.longitude,
-    required this.distanceKm,
-    required this.walkTimeMinutes,
-    required this.crowdLevel,
+    this.distanceKm = 0.0,
+    this.walkTimeMinutes = 0,
+    this.crowdLevel = CrowdLevel.low,
     this.bestTimeStart,
     this.bestTimeEnd,
     this.isGoodForBathing = true,
@@ -36,7 +36,7 @@ class Ghat {
     return Ghat(
       id: json['id'] as String,
       name: json['name'] as String,
-      nameHindi: json['nameHindi'] as String? ?? json['name'],
+      nameHindi: json['nameHindi'] as String?,
       description: json['description'] as String? ?? '',
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),

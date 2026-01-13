@@ -1,4 +1,6 @@
 /// Model for user profile with emergency contacts and medical info
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserProfile {
   final String id;
   final String name;
@@ -6,6 +8,8 @@ class UserProfile {
   final String? bloodGroup;
   final String? photoUrl;
   final String? phone;
+  final String? email;
+  final DateTime? dateOfBirth;
   final List<EmergencyContact> emergencyContacts;
   final MedicalInfo? medicalInfo;
   final bool isVerified;
@@ -17,6 +21,8 @@ class UserProfile {
     this.bloodGroup,
     this.photoUrl,
     this.phone,
+    this.email,
+    this.dateOfBirth,
     this.emergencyContacts = const [],
     this.medicalInfo,
     this.isVerified = false,
@@ -30,6 +36,10 @@ class UserProfile {
       bloodGroup: json['bloodGroup'] as String?,
       photoUrl: json['photoUrl'] as String?,
       phone: json['phone'] as String?,
+      email: json['email'] as String?,
+      dateOfBirth: json['dateOfBirth'] != null
+          ? (json['dateOfBirth'] as Timestamp).toDate()
+          : null,
       emergencyContacts:
           (json['emergencyContacts'] as List<dynamic>?)
               ?.map((e) => EmergencyContact.fromJson(e as Map<String, dynamic>))
@@ -50,6 +60,10 @@ class UserProfile {
       'bloodGroup': bloodGroup,
       'photoUrl': photoUrl,
       'phone': phone,
+      'email': email,
+      'dateOfBirth': dateOfBirth != null
+          ? Timestamp.fromDate(dateOfBirth!)
+          : null,
       'emergencyContacts': emergencyContacts.map((e) => e.toJson()).toList(),
       'medicalInfo': medicalInfo?.toJson(),
       'isVerified': isVerified,
@@ -63,6 +77,8 @@ class UserProfile {
     String? bloodGroup,
     String? photoUrl,
     String? phone,
+    String? email,
+    DateTime? dateOfBirth,
     List<EmergencyContact>? emergencyContacts,
     MedicalInfo? medicalInfo,
     bool? isVerified,
@@ -74,6 +90,8 @@ class UserProfile {
       bloodGroup: bloodGroup ?? this.bloodGroup,
       photoUrl: photoUrl ?? this.photoUrl,
       phone: phone ?? this.phone,
+      email: email ?? this.email,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       emergencyContacts: emergencyContacts ?? this.emergencyContacts,
       medicalInfo: medicalInfo ?? this.medicalInfo,
       isVerified: isVerified ?? this.isVerified,

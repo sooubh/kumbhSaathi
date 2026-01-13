@@ -10,10 +10,11 @@ class LostPerson {
   final double? lastSeenLng;
   final String? description;
   final String? voiceDescriptionUrl;
-  final String guardianName;
-  final String guardianPhone;
+  final String? guardianName;
+  final String? guardianPhone;
   final String? guardianAddress;
   final DateTime reportedAt;
+  final String reportedBy;
   final LostPersonStatus status;
 
   LostPerson({
@@ -27,10 +28,11 @@ class LostPerson {
     this.lastSeenLng,
     this.description,
     this.voiceDescriptionUrl,
-    required this.guardianName,
-    required this.guardianPhone,
+    this.guardianName,
+    this.guardianPhone,
     this.guardianAddress,
     required this.reportedAt,
+    this.reportedBy = 'anonymous',
     this.status = LostPersonStatus.missing,
   });
 
@@ -46,10 +48,11 @@ class LostPerson {
       lastSeenLng: json['lastSeenLng'] as double?,
       description: json['description'] as String?,
       voiceDescriptionUrl: json['voiceDescriptionUrl'] as String?,
-      guardianName: json['guardianName'] as String,
-      guardianPhone: json['guardianPhone'] as String,
+      guardianName: json['guardianName'] as String?,
+      guardianPhone: json['guardianPhone'] as String?,
       guardianAddress: json['guardianAddress'] as String?,
       reportedAt: DateTime.parse(json['reportedAt'] as String),
+      reportedBy: json['reportedBy'] as String? ?? 'anonymous',
       status: LostPersonStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => LostPersonStatus.missing,
@@ -73,6 +76,7 @@ class LostPerson {
       'guardianPhone': guardianPhone,
       'guardianAddress': guardianAddress,
       'reportedAt': reportedAt.toIso8601String(),
+      'reportedBy': reportedBy,
       'status': status.name,
     };
   }
@@ -92,6 +96,7 @@ class LostPerson {
     String? guardianPhone,
     String? guardianAddress,
     DateTime? reportedAt,
+    String? reportedBy,
     LostPersonStatus? status,
   }) {
     return LostPerson(
@@ -109,6 +114,7 @@ class LostPerson {
       guardianPhone: guardianPhone ?? this.guardianPhone,
       guardianAddress: guardianAddress ?? this.guardianAddress,
       reportedAt: reportedAt ?? this.reportedAt,
+      reportedBy: reportedBy ?? this.reportedBy,
       status: status ?? this.status,
     );
   }

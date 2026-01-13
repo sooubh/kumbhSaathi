@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // USERS: Users can only read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // LOST PERSONS: Public read, Auth required to create, Owner can edit
+    match /lost_persons/{document=**} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // GHATS & FACILITIES: Public read, ONLY Admin Email can write
+    match /ghats/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.email == 'sourabh3527@gmail.com';
+    }
+    
+    // Facilities: Public read, Admin write, User create pending
+    match /facilities/{document} {
+      allow read: if true;
+      allow create: if request.auth != null 
+                   && request.resource.data.status == 'pending'
+                   && request.resource.data.submittedBy == request.auth.uid;
+      allow update: if request.auth != null 
+                   && request.auth.token.email == 'sourabh3527@gmail.com'; // Admin only approve/edit
+      allow delete: if request.auth != null 
+                   && request.auth.token.email == 'sourabh3527@gmail.com'; // Admin only delete
+    }
+    
+    // EMERGENCY: Auth required to send alert
+    match /emergency_alerts/{document=**} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if false; // Backend/Admin only
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
