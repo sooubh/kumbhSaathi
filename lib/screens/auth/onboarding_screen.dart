@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
-import 'profile_creation_screen.dart';
-import '../home/home_screen.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -29,33 +27,35 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  void _signInWithGoogle() async {
-    // We will update AuthProvider to handle this better, but for now:
-    await ref.read(authProvider.notifier).signInWithGoogle();
+  bool _isLoading = false;
 
-    if (mounted) {
-      final authState = ref.read(authProvider);
-      if (authState.isAuthenticated) {
-        if (authState.profile != null && authState.profile!.isVerified) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        } else {
-          // Go to profile creation if profile missing or unverified
-          // Note: ProfileCreationScreen doesn't exist yet, so this will be a placeholder
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileCreationScreen()),
+  void _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await ref.read(authProvider.notifier).signInWithGoogle();
+
+      // AuthWrapper will handle navigation if authentication is successful
+
+      // Check for errors after attempt
+      if (mounted) {
+        final authState = ref.read(authProvider);
+        if (authState.error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sign in failed: ${authState.error}'),
+              backgroundColor: AppColors.emergency,
+            ),
           );
         }
-      } else if (authState.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sign in failed: ${authState.error}'),
-            backgroundColor: AppColors.emergency,
-          ),
-        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -313,30 +313,39 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.network(
-                  'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
-                  height: 24,
-                  width: 24,
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.g_mobiledata,
-                    size: 32,
-                    color: Colors.blue,
+            child: _isLoading
+                ? const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.network(
+                        'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
+                        height: 24,
+                        width: 24,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.g_mobiledata,
+                          size: 32,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Sign in with Google',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Sign in with Google',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

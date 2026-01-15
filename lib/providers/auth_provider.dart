@@ -73,7 +73,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Sign in anonymously
   Future<void> signInAnonymously() async {
-    state = state.copyWith(status: AuthStatus.loading);
+    // state = state.copyWith(status: AuthStatus.loading); // Removed to prevent UI reset
     try {
       final credential = await FirebaseService.signInAnonymously();
 
@@ -103,13 +103,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Sign in with Google
   Future<void> signInWithGoogle() async {
-    state = state.copyWith(status: AuthStatus.loading);
+    // state = state.copyWith(status: AuthStatus.loading); // Removed to prevent UI reset
     try {
       final credential = await FirebaseService.signInWithGoogle();
 
       if (credential == null) {
         // User cancelled
-        state = state.copyWith(status: AuthStatus.unauthenticated);
+        // state = state.copyWith(status: AuthStatus.unauthenticated); // strictly not needed if we didn't change state
         return;
       }
 

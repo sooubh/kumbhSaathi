@@ -4,7 +4,6 @@ import '../../core/theme/app_colors.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../admin/admin_dashboard_screen.dart';
-import '../auth/login_screen.dart';
 
 /// Settings screen
 class SettingsScreen extends ConsumerWidget {
@@ -25,13 +24,7 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () async {
               Navigator.pop(context);
               await ref.read(authProvider.notifier).signOut();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (_) => false,
-                );
-              }
+              // AuthWrapper will handle navigation automatically after sign out
             },
             child: const Text(
               'Logout',
