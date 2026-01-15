@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// User settings model
 class UserSettings {
@@ -143,10 +144,10 @@ class SettingsNotifier extends StateNotifier<UserSettings> {
   }
 }
 
-/// Settings provider
 final settingsProvider =
     StateNotifierProvider<SettingsNotifier, UserSettings>((ref) {
-  // Get current user ID from auth provider
-  final userId = 'current_user_id'; // TODO: Get from auth provider
+  // Get current user ID from Firebase Auth
+  final user = FirebaseAuth.instance.currentUser;
+  final userId = user?.uid ?? 'anonymous_user';
   return SettingsNotifier(userId);
 });

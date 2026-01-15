@@ -1,6 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// Background message handler (must be top-level function)
 @pragma('vm:entry-point')
@@ -75,9 +76,11 @@ class NotificationService {
 
   /// Save FCM token to Firestore
   Future<void> _saveTokenToFirestore(String token) async {
-    final userId = 'current_user_id'; // TODO: Get from auth
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    
     try {
-      await _firestore.collection('fcm_tokens').doc(userId).set({
+      await _firestore.collection('fcm_tokens').doc(user.uid).set({
         'token': token,
         'platform': 'android', // or 'ios'
         'updatedAt': FieldValue.serverTimestamp(),
