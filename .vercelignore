@@ -1,0 +1,47 @@
+# Vercel - Ignore files and directories
+.git
+.github
+.idea
+.vscode
+.dart_tool
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache
+.pub/
+
+# Build artifacts (except web build)
+build/android
+build/ios
+build/linux
+build/macos
+build/windows
+build/native_assets
+
+# Source files (not needed in deployment)
+lib/
+test/
+integration_test/
+android/
+ios/
+linux/
+macos/
+windows/
+
+# Documentation
+README.md
+documentation/
+Design/
+
+# Configuration files
+pubspec.yaml
+pubspec.lock
+analysis_options.yaml
+*.iml
+.metadata
+.gitignore
+
+# Firebase (will be reconfigured for web)
+firebase.json
+firestore.rules
+storage.rules
