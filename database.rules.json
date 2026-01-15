@@ -1,0 +1,91 @@
+{
+    "rules": {
+        // ============================================
+        // USER PRESENCE / ONLINE STATUS
+        // ============================================
+        "presence": {
+            "$userId": {
+                // Anyone can read presence status
+                ".read": true,
+                // Only the user can update their own presence
+                ".write": "$userId === auth.uid",
+                ".validate": "newData.hasChildren(['online', 'lastSeen'])"
+            }
+        },
+        // ============================================
+        // LIVE CROWD COUNT (Real-time updates)
+        // ============================================
+        "crowd_count": {
+            "$ghatId": {
+                // Public read for crowd counts
+                ".read": true,
+                // Only Cloud Functions (admin) can write
+                ".write": "auth != null && auth.token.admin === true",
+                ".validate": "newData.hasChildren(['count', 'level', 'timestamp'])"
+            }
+        },
+        // ============================================
+        // LIVE USER LOCATIONS (for crowd tracking)
+        // ============================================
+        "user_locations": {
+            "$userId": {
+                // Authenticated users can read locations
+                ".read": "auth != null",
+                // Users can only update their own location
+                ".write": "$userId === auth.uid",
+                ".validate": "newData.hasChildren(['latitude', 'longitude', 'timestamp'])"
+            }
+        },
+        // ============================================
+        // TYPING INDICATORS (for chat features)
+        // ============================================
+        "typing": {
+            "$chatId": {
+                "$userId": {
+                    // Chat participants can read
+                    ".read": "auth != null",
+                    // User can only update their own typing status
+                    ".write": "$userId === auth.uid"
+                }
+            }
+        },
+        // ============================================
+        // LIVE NOTIFICATIONS (urgent alerts)
+        // ============================================
+        "live_alerts": {
+            // Everyone can read live alerts
+            ".read": true,
+            // Only admin can write alerts
+            ".write": "auth != null && auth.token.email === 'sourabh3527@gmail.com'"
+        },
+        // ============================================
+        // EMERGENCY SOS LIVE TRACKING
+        // ============================================
+        "sos_tracking": {
+            "$alertId": {
+                // Authenticated users can read SOS alerts
+                ".read": "auth != null",
+                // Creator can update, admin can manage
+                ".write": "auth != null && (data.child('userId').val() === auth.uid || auth.token.email === 'sourabh3527@gmail.com')"
+            }
+        },
+        // ============================================
+        // GHAT LIVE STATUS (quick updates)
+        // ============================================
+        "ghat_status": {
+            "$ghatId": {
+                // Public read
+                ".read": true,
+                // Only admin can update
+                ".write": "auth != null && auth.token.email === 'sourabh3527@gmail.com'"
+            }
+        },
+        // ============================================
+        // DEFAULT: Deny all other access
+        // ============================================
+        "$other": {
+            ".read": false,
+            ".write": false
+        }
+    }
+}

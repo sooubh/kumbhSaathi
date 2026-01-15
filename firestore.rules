@@ -3,43 +3,143 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // ============================================
     // USERS: Users can only read/write their own profile
+    // ============================================
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // LOST PERSONS: Public read, Auth required to create, Owner can edit
-    match /lost_persons/{document=**} {
+    // ============================================
+    // USER SETTINGS: Users can only read/write their own settings
+    // ============================================
+    match /user_settings/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ============================================
+    // USER LOCATIONS: Real-time location sharing
+    // ============================================
+    match /user_locations/{userId} {
+      // Users can read all locations (for crowd monitoring)
+      allow read: if request.auth != null;
+      // Users can only write their own location
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ============================================
+    // FCM TOKENS: Push notification tokens
+    // ============================================
+    match /fcm_tokens/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ============================================
+    // LOST PERSONS: Public read, Auth required to create
+    // ============================================
+    match /lost_persons/{personId} {
+      // Anyone can read lost person reports
+      allow read: if true;
+      // Authenticated users can create reports
+      allow create: if request.auth != null;
+      // Only reporter or admin can update/delete
+      allow update, delete: if request.auth != null && 
+                             (request.auth.uid == resource.data.reportedBy ||
+                              request.auth.token.email == 'sourabh3527@gmail.com');
+    }
+    
+    // ============================================
+    // GHATS: Public read, Admin only write
+    // ============================================
+    match /ghats/{ghatId} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+                      request.auth.token.email == 'sourabh3527@gmail.com';
+    }
+    
+    // ============================================
+    // KUMBH UPDATES: Public read, Admin only write
+    // ============================================
+    match /kumbh_updates/{updateId} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+                      request.auth.token.email == 'sourabh3527@gmail.com';
+    }
+    
+    // ============================================
+    // NOTIFICATIONS: System managed
+    // ============================================
+    match /notifications/{notificationId} {
+      // Authenticated users can read notifications
+      allow read: if request.auth != null;
+      // Only admin or system can create notifications
+      allow create: if request.auth != null;
+      // Cloud Function updates status (server-side, bypasses rules)
+      allow update, delete: if request.auth != null && 
+                               request.auth.token.email == 'sourabh3527@gmail.com';
+    }
+    
+    // ============================================
+    // CUSTOM WALKING PATHS: Community contributed
+    // ============================================
+    match /custom_walking_paths/{pathId} {
+      // Anyone can read paths
+      allow read: if true;
+      // Authenticated users can create paths
+      allow create: if request.auth != null;
+      // Creator or admin can update/delete
+      allow update, delete: if request.auth != null && 
+                              (request.auth.uid == resource.data.createdBy ||
+                               request.auth.token.email == 'sourabh3527@gmail.com');
+    }
+    
+    // ============================================
+    // PATH VOTES: Vote tracking
+    // ============================================
+    match /path_votes/{voteId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Users can only update/delete their own votes
+      allow update, delete: if request.auth != null && 
+                               request.auth.uid == resource.data.userId;
     }
     
-    // GHATS & FACILITIES: Public read, ONLY Admin Email can write
-    match /ghats/{document=**} {
+    // ============================================
+    // FACILITIES: Public read, Admin write
+    // ============================================
+    match /facilities/{facilityId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.email == 'sourabh3527@gmail.com';
+      // Users can submit pending facilities
+      allow create: if request.auth != null && 
+                       request.resource.data.status == 'pending' &&
+                       request.resource.data.submittedBy == request.auth.uid;
+      // Admin only approve/edit/delete
+      allow update, delete: if request.auth != null && 
+                               request.auth.token.email == 'sourabh3527@gmail.com';
     }
     
-    // Facilities: Public read, Admin write, User create pending
-    match /facilities/{document} {
-      allow read: if true;
-      allow create: if request.auth != null 
-                   && request.resource.data.status == 'pending'
-                   && request.resource.data.submittedBy == request.auth.uid;
-      allow update: if request.auth != null 
-                   && request.auth.token.email == 'sourabh3527@gmail.com'; // Admin only approve/edit
-      allow delete: if request.auth != null 
-                   && request.auth.token.email == 'sourabh3527@gmail.com'; // Admin only delete
-    }
-    
-    // EMERGENCY: Auth required to send alert
-    match /emergency_alerts/{document=**} {
+    // ============================================
+    // EMERGENCY ALERTS: Create only
+    // ============================================
+    match /emergency_alerts/{alertId} {
       allow create: if request.auth != null;
-      allow read, update, delete: if false; // Backend/Admin only
+      // Only admin/backend can read, update, delete
+      allow read, update, delete: if request.auth != null && 
+                                     request.auth.token.email == 'sourabh3527@gmail.com';
     }
     
-    // Default deny
+    // ============================================
+    // EMERGENCY CONTACTS: Public read, Admin write
+    // ============================================
+    match /emergency_contacts/{contactId} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+                      request.auth.token.email == 'sourabh3527@gmail.com';
+    }
+    
+    // ============================================
+    // DEFAULT: Deny all other access
+    // ============================================
     match /{document=**} {
       allow read, write: if false;
     }
