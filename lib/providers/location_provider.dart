@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../core/services/firestore_location_service.dart';
+import '../data/models/user_location_model.dart';
 
 /// Location state with when-like functionality
 class LocationState {
@@ -47,6 +51,10 @@ class LocationNotifier extends StateNotifier<LocationState> {
     getCurrentLocation();
   }
 
+  bool _isStreamingToFirestore = false;
+  final FirestoreLocationService _firestoreService =
+      FirestoreLocationService();
+
   Future<bool> checkPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -73,6 +81,16 @@ class LocationNotifier extends StateNotifier<LocationState> {
 
   Future<void> getCurrentLocation() async {
     state = state.copyWith(isLoading: true, error: null);
+
+    // Check permission first
+    final permissionStatus = await Permission.location.status;
+    if (!permissionStatus.isGranted) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Location permission not granted',
+      );
+      return;
+    }
 
     final hasPermission = await checkPermission();
     if (!hasPermission) {
@@ -102,6 +120,73 @@ class LocationNotifier extends StateNotifier<LocationState> {
     ).listen((position) {
       state = state.copyWith(currentPosition: position);
     });
+  }
+
+  /// Start streaming location to Firestore for realtime sharing
+  Future<void> startFirestoreLocationSync({
+    required String userId,
+    required String userName,
+  }) async {
+    if (_isStreamingToFirestore) return;
+
+    _isStreamingToFirestore = true;
+
+    Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10, // Update every 10 meters
+      ),
+    ).listen((position) async {
+      state = state.copyWith(currentPosition: position);
+
+      // Update Firestore
+      try {
+        final userLocation = UserLocation(
+          userId: userId,
+          userName: userName,
+          position: LatLng(position.latitude, position.longitude),
+          accuracy: position.accuracy,
+          timestamp: DateTime.now(),
+          isSharing: true,
+          status: _determineStatus(position.speed),
+        );
+
+        await _firestoreService.updateUserLocation(userLocation);
+      } catch (e) {
+        // Silently fail - don't disrupt location tracking
+      }
+    });
+  }
+
+  /// Stop streaming location to Firestore
+  Future<void> stopFirestoreLocationSync(String userId) async {
+    _isStreamingToFirestore = false;
+    try {
+      await _firestoreService.deleteUserLocation(userId);
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  /// Update sharing status
+  Future<void> updateSharingStatus({
+    required String userId,
+    required bool isSharing,
+  }) async {
+    try {
+      await _firestoreService.updateSharingStatus(
+        userId: userId,
+        isSharing: isSharing,
+      );
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  String _determineStatus(double speed) {
+    if (speed < 0.5) return 'stationary';
+    if (speed < 2.0) return 'moving';
+    return 'active';
   }
 }
 

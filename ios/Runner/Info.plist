@@ -45,5 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Location permissions for OpenStreetMap and navigation -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to show nearby ghats and provide navigation guidance during your Kumbh Mela visit</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need your location for realtime tracking and safety features during the Kumbh Mela</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>We need your location for background tracking to ensure your safety during the Kumbh Mela</string>
 </dict>
 </plist>

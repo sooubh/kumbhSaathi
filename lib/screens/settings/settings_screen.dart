@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../admin/admin_dashboard_screen.dart';
 
 /// Settings screen
@@ -40,6 +41,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeMode = ref.watch(themeProvider);
+    final settings = ref.watch(settingsProvider);
 
     return Scaffold(
       backgroundColor: isDark
@@ -88,7 +90,7 @@ class SettingsScreen extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'English',
+                        settings.language,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -106,7 +108,7 @@ class SettingsScreen extends ConsumerWidget {
                     ],
                   ),
                   onTap: () {
-                    // TODO: Language picker
+                    _showLanguagePicker(context, ref, settings.language);
                   },
                   isDark: isDark,
                 ),
@@ -126,7 +128,14 @@ class SettingsScreen extends ConsumerWidget {
                   iconColor: Colors.orange[700]!,
                   title: 'Crowd Level Alerts',
                   subtitle: 'Real-time Ghat updates',
-                  trailing: _CustomSwitch(value: true, onChanged: (_) {}),
+                  trailing: _CustomSwitch(
+                    value: settings.crowdLevelAlerts,
+                    onChanged: (value) {
+                      ref
+                          .read(settingsProvider.notifier)
+                          .setCrowdLevelAlerts(value);
+                    },
+                  ),
                   isDark: isDark,
                 ),
                 const _Divider(),
@@ -135,7 +144,14 @@ class SettingsScreen extends ConsumerWidget {
                   iconBgColor: const Color(0xFFD1FAE5),
                   iconColor: AppColors.success,
                   title: 'Ritual Reminders',
-                  trailing: _CustomSwitch(value: false, onChanged: (_) {}),
+                  trailing: _CustomSwitch(
+                    value: settings.ritualReminders,
+                    onChanged: (value) {
+                      ref
+                          .read(settingsProvider.notifier)
+                          .setRitualReminders(value);
+                    },
+                  ),
                   isDark: isDark,
                 ),
               ],
@@ -157,7 +173,7 @@ class SettingsScreen extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Standard',
+                        settings.textSize,
                         style: TextStyle(
                           fontSize: 14,
                           color: isDark
@@ -175,7 +191,9 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  onTap: () {},
+                  onTap: () {
+                    _showTextSizePicker(context, ref, settings.textSize);
+                  },
                   isDark: isDark,
                 ),
                 const _Divider(),
@@ -184,7 +202,14 @@ class SettingsScreen extends ConsumerWidget {
                   iconBgColor: const Color(0xFFFEF3C7),
                   iconColor: Colors.amber[700]!,
                   title: 'High Contrast Mode',
-                  trailing: _CustomSwitch(value: false, onChanged: (_) {}),
+                  trailing: _CustomSwitch(
+                    value: settings.highContrastMode,
+                    onChanged: (value) {
+                      ref
+                          .read(settingsProvider.notifier)
+                          .setHighContrastMode(value);
+                    },
+                  ),
                   isDark: isDark,
                 ),
               ],
@@ -209,7 +234,9 @@ class SettingsScreen extends ConsumerWidget {
                         : AppColors.textMutedLight,
                     size: 18,
                   ),
-                  onTap: () {},
+                  onTap: () {
+                    _showPrivacySettings(context, ref, settings);
+                  },
                   isDark: isDark,
                 ),
                 const _Divider(),
@@ -239,7 +266,15 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  onTap: () {},
+                  onTap: () async {
+                    await ref.read(settingsProvider.notifier).backupData();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Backup completed successfully!')),
+                      );
+                    }
+                  },
                   isDark: isDark,
                 ),
               ],

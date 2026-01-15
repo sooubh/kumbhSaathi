@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/config/panchavati_config.dart';
 import '../../data/models/ghat.dart';
+import '../../data/models/map_marker_model.dart';
 import '../../data/providers/data_providers.dart';
+import '../../providers/location_provider.dart';
+import '../../providers/map_provider.dart';
+import '../../providers/routing_provider.dart';
 import '../../widgets/cards/ghat_card.dart';
+import '../../widgets/map/map_widget.dart';
+import '../../widgets/map/route_panel.dart';
+import '../../widgets/kumbh/panchavati_legend.dart';
 
 /// Ghat navigation screen with map and nearby ghats
 class GhatNavigationScreen extends ConsumerStatefulWidget {
@@ -76,16 +85,8 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
           Expanded(
             child: Stack(
               children: [
-                // Map placeholder
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? AppColors.cardDark
-                        : const Color(0xFFF1F5F9),
-                  ),
-                  child: _buildMapPlaceholder(isDark),
-                ),
+                // OpenStreetMap
+                _buildMap(context, isDark),
                 // Crowd labels from Firestore data
                 ghatsAsync.when(
                   loading: () => const SizedBox(),
@@ -121,11 +122,33 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
                     );
                   },
                 ),
+                // Panchavati Legend
+                Positioned(
+                  left: 16,
+                  bottom: 16,
+                  child: PanchavatiGhatLegend(isDark: isDark),
+                ),
+                // Focus Panchavati button
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: FocusPanchavatiButton(
+                    isDark: isDark,
+                    onTap: () {
+                      ref.read(mapProvider.notifier).setCenter(
+                            PanchavatiConfig.panchavatiCenter,
+                          );
+                      ref.read(mapProvider.notifier).setZoom(
+                            PanchavatiConfig.optimalZoom,
+                          );
+                    },
+                  ),
+                ),
                 // Map controls
                 Positioned(
                   right: 16,
                   bottom: 16,
-                  child: _buildMapControls(isDark),
+                  child: _buildMapControls(context, isDark, ref),
                 ),
               ],
             ),
@@ -455,38 +478,134 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     );
   }
 
-  Widget _buildMapPlaceholder(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.map,
-            size: 64,
-            color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Map View',
-            style: TextStyle(
-              fontSize: 16,
-              color: isDark
-                  ? AppColors.textMutedDark
-                  : AppColors.textMutedLight,
+  Widget _buildMap(BuildContext context, bool isDark) {
+    final locationState = ref.watch(locationProvider);
+    final mapState = ref.watch(mapProvider);
+    final routingState = ref.watch(routingProvider);
+    final ghatsAsync = ref.watch(ghatsStreamProvider);
+
+    // Get user location
+    final userLocation = locationState.currentPosition != null
+        ? LatLng(
+            locationState.currentPosition!.latitude,
+            locationState.currentPosition!.longitude,
+          )
+        : null;
+
+    // Build markers from ghats
+    final markers = ghatsAsync.when(
+      loading: () => <CustomMapMarker>[],
+      error: (_, __) => <CustomMapMarker>[],
+      data: (ghats) {
+        return ghats.map((ghat) {
+          Color crowdColor;
+          switch (ghat.crowdLevel) {
+            case CrowdLevel.low:
+              crowdColor = AppColors.success;
+              break;
+            case CrowdLevel.medium:
+              crowdColor = Colors.orange;
+              break;
+            case CrowdLevel.high:
+              crowdColor = AppColors.emergency;
+              break;
+          }
+
+          return CustomMapMarker.ghat(
+            id: ghat.id,
+            position: LatLng(ghat.latitude, ghat.longitude),
+            name: ghat.name,
+            crowdColor: crowdColor,
+            metadata: {'ghat': ghat},
+          );
+        }).toList();
+      },
+    );
+
+    return MapWidget(
+      center: userLocation ?? mapState.center,
+      zoom: mapState.zoom,
+      markers: markers,
+      route: routingState.calculatedRoute,
+      userLocation: userLocation,
+      showUserLocation: true,
+      onMarkerTap: (marker) {
+        ref.read(mapProvider.notifier).selectMarker(marker);
+        // Show ghat details
+        if (marker.metadata != null && marker.metadata!['ghat'] != null) {
+          _showGhatDetails(context, marker.metadata!['ghat'] as Ghat);
+        }
+      },
+      onLongPress: (position) {
+        // Start navigation to this point
+        _startNavigation(context, ref, position);
+      },
+    );
+  }
+
+  void _showGhatDetails(BuildContext context, Ghat ghat) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              ghat.name,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          Text(
-            'Google Maps API key required',
-            style: TextStyle(
-              fontSize: 12,
-              color: isDark
-                  ? AppColors.textMutedDark
-                  : AppColors.textMutedLight,
+            const SizedBox(height: 8),
+            Text(
+              ghat.description,
+              style: const TextStyle(fontSize: 14),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _startNavigation(
+                  context,
+                  ref,
+                  LatLng(ghat.latitude, ghat.longitude),
+                  name: ghat.name,
+                );
+              },
+              icon: const Icon(Icons.navigation),
+              label: const Text('Navigate Here'),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _startNavigation(
+    BuildContext context,
+    WidgetRef ref,
+    LatLng destination, {
+    String? name,
+  }) {
+    final locationState = ref.read(locationProvider);
+    if (locationState.currentPosition == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to get your location')),
+      );
+      return;
+    }
+
+    final start = LatLng(
+      locationState.currentPosition!.latitude,
+      locationState.currentPosition!.longitude,
+    );
+
+    ref.read(routingProvider.notifier).setStartPoint(start, name: 'Your Location');
+    ref.read(routingProvider.notifier).setEndPoint(destination, name: name);
+    ref.read(routingProvider.notifier).calculateRoute();
   }
 
   Widget _buildCrowdLabel(String text, Color color) {
@@ -526,25 +645,50 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     );
   }
 
-  Widget _buildMapControls(bool isDark) {
+  Widget _buildMapControls(BuildContext context, bool isDark, WidgetRef ref) {
+    final mapState = ref.watch(mapProvider);
+
     return Column(
       children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.primaryBlue,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryBlue.withValues(alpha: 0.4),
-                blurRadius: 12,
+        // Location tracking button
+        GestureDetector(
+          onTap: () {
+            ref.read(mapProvider.notifier).toggleTracking();
+            ref.read(locationProvider.notifier).getCurrentLocation();
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: mapState.isTracking
+                  ? AppColors.primaryBlue
+                  : (isDark ? AppColors.cardDark : Colors.white),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: mapState.isTracking
+                    ? AppColors.primaryBlue
+                    : (isDark ? AppColors.borderDark : const Color(0xFFE5E7EB)),
               ),
-            ],
+              boxShadow: [
+                BoxShadow(
+                  color: mapState.isTracking
+                      ? AppColors.primaryBlue.withValues(alpha: 0.4)
+                      : Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.my_location,
+              color: mapState.isTracking
+                  ? Colors.white
+                  : (isDark ? AppColors.textDarkDark : AppColors.textDarkLight),
+              size: 20,
+            ),
           ),
-          child: const Icon(Icons.near_me, color: Colors.white, size: 20),
         ),
         const SizedBox(height: 12),
+        // Zoom controls
         Container(
           decoration: BoxDecoration(
             color: isDark ? AppColors.cardDark : Colors.white,
@@ -568,7 +712,7 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
                       ? AppColors.textDarkDark
                       : AppColors.textDarkLight,
                 ),
-                onPressed: () {},
+                onPressed: () => ref.read(mapProvider.notifier).zoomIn(),
               ),
               Container(
                 height: 1,
@@ -582,7 +726,7 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
                       ? AppColors.textDarkDark
                       : AppColors.textDarkLight,
                 ),
-                onPressed: () {},
+                onPressed: () => ref.read(mapProvider.notifier).zoomOut(),
               ),
             ],
           ),
