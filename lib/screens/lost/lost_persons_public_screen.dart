@@ -1,24 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/services/firebase_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/lost_person.dart';
 import '../../data/repositories/lost_person_repository.dart';
 
 /// Public screen showing all lost person reports to all users
-class LostPersonsPublicScreen extends ConsumerWidget {
+/// Public screen showing all lost person reports to all users
+class LostPersonsPublicScreen extends ConsumerStatefulWidget {
   const LostPersonsPublicScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LostPersonsPublicScreen> createState() =>
+      _LostPersonsPublicScreenState();
+}
+
+class _LostPersonsPublicScreenState
+    extends ConsumerState<LostPersonsPublicScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final lostPersonsAsync = ref.watch(lostPersonsStreamProvider);
 
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? AppColors.backgroundDark
+          : AppColors.backgroundLight,
       appBar: AppBar(
         title: const Text('Lost Person Alerts'),
         backgroundColor: isDark ? AppColors.backgroundDark : Colors.white,
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppColors.primaryOrange,
+          unselectedLabelColor: isDark
+              ? AppColors.textMutedDark
+              : AppColors.textMutedLight,
+          indicatorColor: AppColors.primaryOrange,
+          tabs: const [
+            Tab(text: 'All Alerts'),
+            Tab(text: 'My Reports'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -28,43 +64,14 @@ class LostPersonsPublicScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: lostPersonsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Text('Error: $error'),
-        ),
-        data: (persons) {
-          if (persons.isEmpty) {
-            return _buildEmptyState(isDark);
-          }
-
-          // Filter to show only missing/searching
-          final activeReports = persons
-              .where((p) => p.status != LostPersonStatus.found)
-              .toList();
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(lostPersonsStreamProvider);
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: activeReports.length,
-              itemBuilder: (context, index) {
-                return _buildLostPersonCard(
-                  activeReports[index],
-                  isDark,
-                  context,
-                );
-              },
-            ),
-          );
-        },
+      body: TabBarView(
+        controller: _tabController,
+        children: [_buildAllAlertsList(isDark), _buildMyReportsList(isDark)],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           // Navigate to report lost person screen
-          Navigator.pushNamed(context, '/report-lost-person');
+          Navigator.pushNamed(context, '/report-lost');
         },
         backgroundColor: AppColors.emergency,
         icon: const Icon(Icons.add_alert, color: Colors.white),
@@ -76,7 +83,97 @@ class LostPersonsPublicScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(bool isDark) {
+  Widget _buildAllAlertsList(bool isDark) {
+    final lostPersonsAsync = ref.watch(lostPersonsStreamProvider);
+
+    return lostPersonsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(child: Text('Error: $error')),
+      data: (persons) {
+        // Filter to show only missing/searching
+        final activeReports = persons
+            .where((p) => p.status != LostPersonStatus.found)
+            .toList();
+
+        if (activeReports.isEmpty) {
+          return _buildEmptyState(
+            isDark,
+            'No Lost Person Reports',
+            'Good news! No one is currently reported missing.',
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(lostPersonsStreamProvider);
+          },
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: activeReports.length,
+            itemBuilder: (context, index) {
+              return _buildLostPersonCard(
+                activeReports[index],
+                isDark,
+                context,
+                isMyReport: false,
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMyReportsList(bool isDark) {
+    // We need a provider for my reports.
+    // For now, we reuse the list and filter client-side or we should create a new provider.
+    // Let's create a temporary provider logic here or use the repository directly via a stream builder if provider isn't available globally yet.
+    // BETTER: Use a new provider. But to avoid context switching, I'll filter the main list for now if the user ID matches,
+    // OR deeper integration: use the method I just added to repo.
+    // Let's use FutureBuilder/StreamBuilder with the new repo method for "My Reports".
+
+    final currentUserId = FirebaseService.currentUserId;
+    if (currentUserId == null) {
+      return Center(child: Text('Please log in to see your reports'));
+    }
+
+    return StreamBuilder<List<LostPerson>>(
+      stream: LostPersonRepository().getMyLostPersonsStream(currentUserId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+
+        final myReports = snapshot.data ?? [];
+
+        if (myReports.isEmpty) {
+          return _buildEmptyState(
+            isDark,
+            'No Reports Filed',
+            'You haven\'t reported any lost persons yet.',
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: myReports.length,
+          itemBuilder: (context, index) {
+            return _buildLostPersonCard(
+              myReports[index],
+              isDark,
+              context,
+              isMyReport: true,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(bool isDark, String title, String subtitle) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -88,7 +185,7 @@ class LostPersonsPublicScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'No Lost Person Reports',
+            title,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -97,9 +194,11 @@ class LostPersonsPublicScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Good news! No one is currently reported missing.',
+            subtitle,
             style: TextStyle(
-              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+              color: isDark
+                  ? AppColors.textMutedDark
+                  : AppColors.textMutedLight,
             ),
             textAlign: TextAlign.center,
           ),
@@ -111,17 +210,18 @@ class LostPersonsPublicScreen extends ConsumerWidget {
   Widget _buildLostPersonCard(
     LostPerson person,
     bool isDark,
-    BuildContext context,
-  ) {
+    BuildContext context, {
+    required bool isMyReport,
+  }) {
+    final isFound = person.status == LostPersonStatus.found;
+    final borderColor = isFound ? AppColors.success : AppColors.emergency;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: isDark ? AppColors.cardDark : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.emergency.withValues(alpha: 0.3),
-          width: 2,
-        ),
+        border: Border.all(color: borderColor.withValues(alpha: 0.3), width: 2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,7 +230,7 @@ class LostPersonsPublicScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.emergency.withValues(alpha: 0.1),
+              color: borderColor.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(14),
                 topRight: Radius.circular(14),
@@ -138,19 +238,37 @@ class LostPersonsPublicScreen extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.warning, color: AppColors.emergency),
+                Icon(
+                  isFound ? Icons.check_circle : Icons.warning,
+                  color: borderColor,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '⚠️ MISSING PERSON ALERT',
+                    isFound ? 'FOUND & REUNITED' : '⚠️ MISSING PERSON ALERT',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.emergency,
+                      color: borderColor,
                       letterSpacing: 0.5,
                     ),
                   ),
                 ),
+                if (isFound)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.success,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'RESOLVED',
+                      style: TextStyle(color: Colors.white, fontSize: 10),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -219,11 +337,7 @@ class LostPersonsPublicScreen extends ConsumerWidget {
                       ),
                       if (person.description != null) ...[
                         const SizedBox(height: 6),
-                        _buildInfoRow(
-                          Icons.info,
-                          person.description!,
-                          isDark,
-                        ),
+                        _buildInfoRow(Icons.info, person.description!, isDark),
                       ],
                     ],
                   ),
@@ -233,7 +347,7 @@ class LostPersonsPublicScreen extends ConsumerWidget {
           ),
 
           // Contact info
-          if (person.guardianPhone != null) ...[
+          if (person.guardianPhone != null && !isFound) ...[
             const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.all(16),
@@ -265,23 +379,68 @@ class LostPersonsPublicScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      // TODO: Call phone number
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  if (!isMyReport)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        // TODO: Call phone number
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.call,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        'Call',
+                        style: TextStyle(color: Colors.white),
                       ),
                     ),
-                    icon: const Icon(Icons.call, size: 18, color: Colors.white),
-                    label: const Text(
-                      'Call',
-                      style: TextStyle(color: Colors.white),
+                ],
+              ),
+            ),
+          ],
+
+          // My Repost Actions
+          if (isMyReport && !isFound) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    // Mark as found
+                    await LostPersonRepository().markAsFound(person.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Marked as Found! Great news!'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                ],
+                  icon: const Icon(Icons.check_circle, color: Colors.white),
+                  label: const Text(
+                    'MARK AS FOUND / RECEIVED',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -305,7 +464,9 @@ class LostPersonsPublicScreen extends ConsumerWidget {
             text,
             style: TextStyle(
               fontSize: 13,
-              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+              color: isDark
+                  ? AppColors.textMutedDark
+                  : AppColors.textMutedLight,
             ),
           ),
         ),

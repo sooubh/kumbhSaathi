@@ -12,15 +12,16 @@ class LostPersonRepository {
   /// Report a new lost person
   Future<String> reportLostPerson(LostPerson person) async {
     final docRef = await _collection.add(person.toJson());
-    
+
     // Send notification to all users
     await NotificationService().sendLostPersonNotification(
       personId: docRef.id,
       personName: person.name,
-      description: '${person.gender}, ${person.age} years old. Last seen at ${person.lastSeenLocation}',
+      description:
+          '${person.gender}, ${person.age} years old. Last seen at ${person.lastSeenLocation}',
       photoUrl: person.photoUrl,
     );
-    
+
     return docRef.id;
   }
 
@@ -58,6 +59,19 @@ class LostPersonRepository {
   /// Delete lost person report
   Future<void> deleteReport(String id) async {
     await _collection.doc(id).delete();
+  }
+
+  /// Get reports by specific user
+  Stream<List<LostPerson>> getMyLostPersonsStream(String userId) {
+    return _collection
+        .where('reportedBy', isEqualTo: userId)
+        .orderBy('reportedAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => LostPerson.fromJson({...doc.data(), 'id': doc.id}))
+              .toList(),
+        );
   }
 
   /// Search lost persons by name
