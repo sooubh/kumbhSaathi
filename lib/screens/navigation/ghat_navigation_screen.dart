@@ -11,7 +11,6 @@ import '../../providers/map_provider.dart';
 import '../../providers/routing_provider.dart';
 import '../../widgets/cards/ghat_card.dart';
 import '../../widgets/map/map_widget.dart';
-import '../../widgets/map/route_panel.dart';
 import '../../widgets/kumbh/panchavati_legend.dart';
 
 /// Ghat navigation screen with map and nearby ghats

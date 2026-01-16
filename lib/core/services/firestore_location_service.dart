@@ -70,7 +70,7 @@ class FirestoreLocationService {
         .map((snapshot) {
       final allLocations = snapshot.docs
           .map((doc) =>
-              UserLocation.fromFirestore(doc.data() as Map<String, dynamic>))
+              UserLocation.fromFirestore(doc.data()))
           .toList();
 
       // Filter by radius and exclude specific user
@@ -103,7 +103,7 @@ class FirestoreLocationService {
 
       final allLocations = snapshot.docs
           .map((doc) =>
-              UserLocation.fromFirestore(doc.data() as Map<String, dynamic>))
+              UserLocation.fromFirestore(doc.data()))
           .toList();
 
       // Filter by radius and exclude specific user

@@ -271,7 +271,8 @@ class SettingsScreen extends ConsumerWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text('Backup completed successfully!')),
+                          content: Text('Backup completed successfully!'),
+                        ),
                       );
                     }
                   },
@@ -436,6 +437,156 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showLanguagePicker(
+    BuildContext context,
+    WidgetRef ref,
+    String currentLanguage,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final languages = ['English', 'Hindi', 'Marathi'];
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Select Language',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              ...languages.map(
+                (lang) => ListTile(
+                  title: Text(lang),
+                  trailing: currentLanguage == lang
+                      ? const Icon(Icons.check, color: AppColors.primaryBlue)
+                      : null,
+                  onTap: () {
+                    ref.read(settingsProvider.notifier).setLanguage(lang);
+                    Navigator.pop(context);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showTextSizePicker(
+    BuildContext context,
+    WidgetRef ref,
+    String currentSize,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final sizes = ['Small', 'Normal', 'Large', 'Extra Large'];
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Select Text Size',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              ...sizes.map(
+                (size) => ListTile(
+                  title: Text(size),
+                  trailing: currentSize == size
+                      ? const Icon(Icons.check, color: AppColors.primaryBlue)
+                      : null,
+                  onTap: () {
+                    ref.read(settingsProvider.notifier).setTextSize(size);
+                    Navigator.pop(context);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPrivacySettings(
+    BuildContext context,
+    WidgetRef ref,
+    UserSettings settings,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Privacy Settings',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  SwitchListTile(
+                    title: const Text('Share Location'),
+                    value: settings.locationSharing,
+                    onChanged: (value) {
+                      ref
+                          .read(settingsProvider.notifier)
+                          .setLocationSharing(value);
+                      Navigator.pop(context);
+                      _showPrivacySettings(
+                        context,
+                        ref,
+                        settings.copyWith(locationSharing: value),
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('Show Profile Publicly'),
+                    value: settings.showProfilePublicly,
+                    onChanged: (value) {
+                      ref
+                          .read(settingsProvider.notifier)
+                          .setShowProfilePublicly(value);
+                      Navigator.pop(context);
+                      _showPrivacySettings(
+                        context,
+                        ref,
+                        settings.copyWith(showProfilePublicly: value),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

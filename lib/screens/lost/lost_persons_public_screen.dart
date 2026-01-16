@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/lost_person.dart';
 import '../../data/repositories/lost_person_repository.dart';
-import '../../data/providers/data_providers.dart';
 
 /// Public screen showing all lost person reports to all users
 class LostPersonsPublicScreen extends ConsumerWidget {

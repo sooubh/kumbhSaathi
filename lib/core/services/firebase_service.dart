@@ -10,13 +10,16 @@ class FirebaseService {
   static FirebaseFirestore get firestore => FirebaseFirestore.instance;
   static FirebaseAuth get auth => FirebaseAuth.instance;
   static FirebaseStorage get storage => FirebaseStorage.instance;
-  static final GoogleSignIn googleSignIn = GoogleSignIn();
+  static GoogleSignIn get googleSignIn => GoogleSignIn.instance;
 
   /// Initialize Firebase with platform-specific options
   static Future<void> initialize() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Initialize Google Sign In (Required for v7.0.0+)
+    await googleSignIn.initialize();
 
     // Enable offline persistence for Firestore
     firestore.settings = const Settings(
@@ -40,17 +43,14 @@ class FirebaseService {
   static Future<UserCredential?> signInWithGoogle() async {
     try {
       // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-
-      if (googleUser == null) return null;
+      // authenticate() is the standard method in v7.0.0+
+      final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
 
       // Create a new credential
       final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 

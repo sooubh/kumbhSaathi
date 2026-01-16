@@ -1,5 +1,6 @@
 /// Panchavati Nashik Kumbh Mela Ghats Data
 /// Add this data to your Firestore 'ghats' collection
+library;
 
 const panchavatiGhatsData = [
   {

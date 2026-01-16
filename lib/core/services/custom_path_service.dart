@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:latlong2/latlong.dart';
 import '../../data/models/custom_walking_path.dart';
 import 'map_service.dart';
 

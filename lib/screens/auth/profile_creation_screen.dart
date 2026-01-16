@@ -223,7 +223,7 @@ class _ProfileCreationScreenState extends ConsumerState<ProfileCreationScreen> {
 
               // Blood Group
               DropdownButtonFormField<String>(
-                value: _selectedBloodGroup,
+                initialValue: _selectedBloodGroup,
                 decoration: InputDecoration(
                   labelText: 'Blood Group (Optional)',
                   border: OutlineInputBorder(

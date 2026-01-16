@@ -14,7 +14,7 @@ class FacilityRepository {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             return Facility.fromJson({...data, 'id': doc.id});
           }).toList();
         });
@@ -28,7 +28,7 @@ class FacilityRepository {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             return Facility.fromJson({...data, 'id': doc.id});
           }).toList();
         });
@@ -43,7 +43,7 @@ class FacilityRepository {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             return Facility.fromJson({...data, 'id': doc.id});
           }).toList();
         });
@@ -65,7 +65,7 @@ class FacilityRepository {
         .get();
 
     return snapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = doc.data();
       return Facility.fromJson({...data, 'id': doc.id});
     }).toList();
   }

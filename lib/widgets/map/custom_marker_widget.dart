@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../data/models/map_marker_model.dart';
-import '../../core/theme/app_colors.dart';
 
 /// Custom marker widget for different marker types
 class CustomMarkerWidget extends StatelessWidget {

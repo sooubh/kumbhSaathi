@@ -11,15 +11,17 @@ class UserSettings {
   final String textSize;
   final bool locationSharing;
   final bool dataBackupEnabled;
+  final bool showProfilePublicly;
 
   const UserSettings({
     this.crowdLevelAlerts = true,
     this.ritualReminders = false,
     this.highContrastMode = false,
     this.language = 'English',
-    this.textSize = 'Standard',
+    this.textSize = 'Normal',
     this.locationSharing = false,
     this.dataBackupEnabled = true,
+    this.showProfilePublicly = false,
   });
 
   UserSettings copyWith({
@@ -30,6 +32,7 @@ class UserSettings {
     String? textSize,
     bool? locationSharing,
     bool? dataBackupEnabled,
+    bool? showProfilePublicly,
   }) {
     return UserSettings(
       crowdLevelAlerts: crowdLevelAlerts ?? this.crowdLevelAlerts,
@@ -39,6 +42,7 @@ class UserSettings {
       textSize: textSize ?? this.textSize,
       locationSharing: locationSharing ?? this.locationSharing,
       dataBackupEnabled: dataBackupEnabled ?? this.dataBackupEnabled,
+      showProfilePublicly: showProfilePublicly ?? this.showProfilePublicly,
     );
   }
 
@@ -51,6 +55,7 @@ class UserSettings {
       'textSize': textSize,
       'locationSharing': locationSharing,
       'dataBackupEnabled': dataBackupEnabled,
+      'showProfilePublicly': showProfilePublicly,
       'lastUpdated': FieldValue.serverTimestamp(),
     };
   }
@@ -61,9 +66,10 @@ class UserSettings {
       ritualReminders: json['ritualReminders'] as bool? ?? false,
       highContrastMode: json['highContrastMode'] as bool? ?? false,
       language: json['language'] as String? ?? 'English',
-      textSize: json['textSize'] as String? ?? 'Standard',
+      textSize: json['textSize'] as String? ?? 'Normal',
       locationSharing: json['locationSharing'] as bool? ?? false,
       dataBackupEnabled: json['dataBackupEnabled'] as bool? ?? true,
+      showProfilePublicly: json['showProfilePublicly'] as bool? ?? false,
     );
   }
 }
@@ -133,6 +139,11 @@ class SettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
+  void setShowProfilePublicly(bool value) {
+    state = state.copyWith(showProfilePublicly: value);
+    _saveSettings();
+  }
+
   void setDataBackupEnabled(bool value) {
     state = state.copyWith(dataBackupEnabled: value);
     _saveSettings();
@@ -144,8 +155,9 @@ class SettingsNotifier extends StateNotifier<UserSettings> {
   }
 }
 
-final settingsProvider =
-    StateNotifierProvider<SettingsNotifier, UserSettings>((ref) {
+final settingsProvider = StateNotifierProvider<SettingsNotifier, UserSettings>((
+  ref,
+) {
   // Get current user ID from Firebase Auth
   final user = FirebaseAuth.instance.currentUser;
   final userId = user?.uid ?? 'anonymous_user';

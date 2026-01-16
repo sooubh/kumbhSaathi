@@ -166,7 +166,7 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
 
               // Type Dropdown
               DropdownButtonFormField<FacilityType>(
-                value: _selectedType,
+                initialValue: _selectedType,
                 decoration: const InputDecoration(
                   labelText: 'Type',
                   border: OutlineInputBorder(),

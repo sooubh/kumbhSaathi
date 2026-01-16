@@ -1,5 +1,4 @@
-import 'dart:collection';
-import 'dart:math' as math;
+import 'package:collection/collection.dart';
 import 'package:latlong2/latlong.dart';
 import '../../data/models/route_model.dart';
 import 'map_service.dart';
@@ -28,10 +27,7 @@ class RoutingService {
     final steps = <RouteStep>[];
 
     // Add start point
-    waypoints.add(RoutePoint(
-      position: start,
-      name: startName,
-    ));
+    waypoints.add(RoutePoint(position: start, name: startName));
 
     // If there are via points, add them
     if (viaPoints != null && viaPoints.isNotEmpty) {
@@ -41,10 +37,7 @@ class RoutingService {
     }
 
     // Add end point
-    waypoints.add(RoutePoint(
-      position: end,
-      name: endName,
-    ));
+    waypoints.add(RoutePoint(position: end, name: endName));
 
     // Calculate steps between each waypoint pair
     double totalDistance = 0;
@@ -83,13 +76,15 @@ class RoutingService {
         instruction = 'Continue $direction';
       }
 
-      steps.add(RouteStep(
-        instruction: instruction,
-        distanceMeters: segmentDistance,
-        durationSeconds: duration,
-        position: from,
-        direction: direction,
-      ));
+      steps.add(
+        RouteStep(
+          instruction: instruction,
+          distanceMeters: segmentDistance,
+          durationSeconds: duration,
+          position: from,
+          direction: direction,
+        ),
+      );
 
       totalDistance += segmentDistance;
       totalDuration += duration;
@@ -128,7 +123,8 @@ class RoutingService {
     for (int i = 1; i < numSegments; i++) {
       final fraction = i / numSegments;
       final lat = start.latitude + (end.latitude - start.latitude) * fraction;
-      final lng = start.longitude + (end.longitude - start.longitude) * fraction;
+      final lng =
+          start.longitude + (end.longitude - start.longitude) * fraction;
       points.add(LatLng(lat, lng));
     }
 
@@ -184,28 +180,6 @@ class RoutingService {
     return routes;
   }
 
-  /// A* node for pathfinding
-  class _AStarNode implements Comparable<_AStarNode> {
-    final LatLng position;
-    final double gCost; // Cost from start
-    final double hCost; // Heuristic cost to end
-    final _AStarNode? parent;
-
-    _AStarNode({
-      required this.position,
-      required this.gCost,
-      required this.hCost,
-      this.parent,
-    });
-
-    double get fCost => gCost + hCost;
-
-    @override
-    int compareTo(_AStarNode other) {
-      return fCost.compareTo(other.fCost);
-    }
-  }
-
   /// Heuristic function for A* (straight-line distance)
   double _heuristic(LatLng a, LatLng b) {
     return _mapService.calculateDistance(a, b);
@@ -250,7 +224,8 @@ class RoutingService {
         if (closedSet.contains(neighborKey)) continue;
         if (_isObstacle(neighborPos, obstacles)) continue;
 
-        final tentativeGCost = current.gCost + _heuristic(current.position, neighborPos);
+        final tentativeGCost =
+            current.gCost + _heuristic(current.position, neighborPos);
 
         final neighbor = _AStarNode(
           position: neighborPos,
@@ -284,12 +259,20 @@ class RoutingService {
     ];
   }
 
-  bool _isGoalReached(LatLng current, LatLng goal, {double threshold = 0.0001}) {
+  bool _isGoalReached(
+    LatLng current,
+    LatLng goal, {
+    double threshold = 0.0001,
+  }) {
     final distance = _mapService.calculateDistance(current, goal);
     return distance < threshold * 111320; // Convert degrees to meters
   }
 
-  bool _isObstacle(LatLng position, List<LatLng> obstacles, {double threshold = 0.0001}) {
+  bool _isObstacle(
+    LatLng position,
+    List<LatLng> obstacles, {
+    double threshold = 0.0001,
+  }) {
     for (final obstacle in obstacles) {
       if ((position.latitude - obstacle.latitude).abs() < threshold &&
           (position.longitude - obstacle.longitude).abs() < threshold) {
@@ -313,5 +296,29 @@ class RoutingService {
     }
 
     return path;
+  }
+}
+
+/// A* node for pathfinding
+class _AStarNode implements Comparable<_AStarNode> {
+  final LatLng position;
+  final double gCost; // Cost from start
+  final double hCost; // Heuristic cost to end
+  final _AStarNode? parent;
+
+  _AStarNode({
+    required this.position,
+    required this.gCost,
+    required this.hCost,
+    this.parent,
+  });
+
+  double get fCost => gCost + hCost;
+
+  @override
+  int compareTo(_AStarNode other) {
+    if (fCost < other.fCost) return -1;
+    if (fCost > other.fCost) return 1;
+    return 0;
   }
 }

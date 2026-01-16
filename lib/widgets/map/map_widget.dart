@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import '../../data/models/map_marker_model.dart';
 import '../../data/models/route_model.dart';
-import '../../providers/map_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/config/panchavati_config.dart';
 import 'custom_marker_widget.dart';
@@ -93,7 +92,6 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
               color: AppColors.primaryBlue.withValues(alpha: 0.1),
               borderColor: AppColors.primaryBlue.withValues(alpha: 0.5),
               borderStrokeWidth: 3,
-              isFilled: true,
               label: 'Panchavati Area',
               labelStyle: TextStyle(
                 color: AppColors.primaryBlue,
@@ -111,7 +109,7 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
               points: PanchavatiConfig.mainPilgrimageRoute,
               color: AppColors.primaryBlue.withValues(alpha: 0.4),
               strokeWidth: 2.0,
-              isDotted: true,
+              pattern: const StrokePattern.dotted(),
             ),
           ],
         ),
@@ -171,10 +169,7 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
         // Attribution
         RichAttributionWidget(
           attributions: [
-            TextSourceAttribution(
-              'OpenStreetMap contributors',
-              onTap: () {},
-            ),
+            TextSourceAttribution('OpenStreetMap contributors', onTap: () {}),
           ],
         ),
       ],
