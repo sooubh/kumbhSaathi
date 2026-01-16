@@ -63,6 +63,8 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
       options: MapOptions(
         initialCenter: widget.center,
         initialZoom: widget.zoom,
+        minZoom: PanchavatiConfig.minZoom,
+        maxZoom: PanchavatiConfig.maxZoom,
         onTap: widget.enableInteraction
             ? (tapPosition, point) => widget.onTap?.call(point)
             : null,

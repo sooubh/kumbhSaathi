@@ -5,8 +5,15 @@ import 'core/services/firebase_service.dart';
 import 'core/services/realtime_crowd_service.dart';
 import 'app.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'providers/language_provider.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
 
   // Initialize Firebase
   await FirebaseService.initialize();
@@ -17,5 +24,10 @@ void main() async {
     RealtimeCrowdService().autoUpdateCrowdLevels();
   });
 
-  runApp(const ProviderScope(child: KumbhSaathiApp()));
+  runApp(
+    ProviderScope(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      child: const KumbhSaathiApp(),
+    ),
+  );
 }

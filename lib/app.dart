@@ -14,6 +14,10 @@ import 'screens/profile/profile_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/main_screen.dart';
 import 'providers/auth_provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
+import 'providers/language_provider.dart';
+import 'screens/onboarding/language_selection_screen.dart';
 
 /// Main App Widget
 class KumbhSaathiApp extends ConsumerWidget {
@@ -22,6 +26,7 @@ class KumbhSaathiApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeProvider);
+    final languageState = ref.watch(languageProvider);
 
     // Set system UI overlay style based on theme
     SystemChrome.setSystemUIOverlayStyle(
@@ -37,11 +42,19 @@ class KumbhSaathiApp extends ConsumerWidget {
     );
 
     return MaterialApp(
-      title: 'KumbhSaathi',
+      onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
+      locale: languageState.locale,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       routes: {
         '/home': (context) => const HomeScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
@@ -52,6 +65,8 @@ class KumbhSaathiApp extends ConsumerWidget {
         '/voice-assistant': (context) => const VoiceAssistantScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/language-selection': (context) => const LanguageSelectionScreen(),
+        '/': (context) => const AuthWrapper(),
       },
       home: const AuthWrapper(),
     );
@@ -64,6 +79,12 @@ class AuthWrapper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
+    final languageState = ref.watch(languageProvider);
+
+    // Initial Language Selection
+    if (!languageState.isSelected) {
+      return const LanguageSelectionScreen();
+    }
 
     // Show loading while checking state
     if (authState.isLoading) {

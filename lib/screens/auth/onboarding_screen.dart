@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../l10n/app_localizations.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -132,7 +133,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 32),
           Text(
-            'Welcome to KumbhSaathi',
+            AppLocalizations.of(context)!.onboardingTitle1,
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -142,7 +143,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Your trusted companion for a safe and spiritual journey at Nashik Kumbh Mela 2025.',
+            AppLocalizations.of(context)!.onboardingDesc1,
             style: TextStyle(
               fontSize: 16,
               color: isDark
@@ -163,7 +164,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 borderRadius: BorderRadius.circular(25),
               ),
             ),
-            child: const Text('Get Started'),
+            child: Text(AppLocalizations.of(context)!.getStarted),
           ),
         ],
       ),
@@ -179,7 +180,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Icon(Icons.security, size: 80, color: AppColors.primaryBlue),
           const SizedBox(height: 32),
           Text(
-            'Your Safety First',
+            AppLocalizations.of(context)!.onboardingTitle2,
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -218,7 +219,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 borderRadius: BorderRadius.circular(25),
               ),
             ),
-            child: const Text('Next'),
+            child: Text(AppLocalizations.of(context)!.next),
           ),
         ],
       ),
@@ -279,7 +280,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Icon(Icons.account_circle, size: 80, color: AppColors.success),
           const SizedBox(height: 32),
           Text(
-            'Create Your Profile',
+            AppLocalizations.of(context)!.onboardingTitle3,
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -289,7 +290,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Sign in with Google to create your secure profile. We will ask for your basic details to keep you safe.',
+            AppLocalizations.of(context)!.onboardingDesc3,
             style: TextStyle(
               fontSize: 16,
               color: isDark
@@ -336,8 +337,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Sign in with Google',
+                      Text(
+                        AppLocalizations.of(context)!.signInGoogle,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

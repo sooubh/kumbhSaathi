@@ -56,10 +56,12 @@ class MapState {
 /// Map state notifier
 class MapNotifier extends StateNotifier<MapState> {
   MapNotifier()
-      : super(MapState(
+    : super(
+        MapState(
           center: PanchavatiConfig.panchavatiCenter,
           zoom: PanchavatiConfig.optimalZoom,
-        ));
+        ),
+      );
 
   void setCenter(LatLng center) {
     state = state.copyWith(center: center);
@@ -70,11 +72,21 @@ class MapNotifier extends StateNotifier<MapState> {
   }
 
   void zoomIn() {
-    state = state.copyWith(zoom: (state.zoom + 1).clamp(1, 18));
+    state = state.copyWith(
+      zoom: (state.zoom + 1).clamp(
+        PanchavatiConfig.minZoom,
+        PanchavatiConfig.maxZoom,
+      ),
+    );
   }
 
   void zoomOut() {
-    state = state.copyWith(zoom: (state.zoom - 1).clamp(1, 18));
+    state = state.copyWith(
+      zoom: (state.zoom - 1).clamp(
+        PanchavatiConfig.minZoom,
+        PanchavatiConfig.maxZoom,
+      ),
+    );
   }
 
   void setMarkers(List<CustomMapMarker> markers) {
@@ -87,8 +99,9 @@ class MapNotifier extends StateNotifier<MapState> {
   }
 
   void removeMarker(String markerId) {
-    final updatedMarkers =
-        state.markers.where((m) => m.id != markerId).toList();
+    final updatedMarkers = state.markers
+        .where((m) => m.id != markerId)
+        .toList();
     state = state.copyWith(markers: updatedMarkers);
   }
 

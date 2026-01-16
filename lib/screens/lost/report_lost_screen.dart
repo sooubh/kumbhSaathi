@@ -8,11 +8,34 @@ import '../../data/repositories/lost_person_repository.dart';
 import '../../widgets/common/primary_button.dart';
 import '../../widgets/common/input_field.dart';
 
-/// Report lost person form screen
+/// Report lost person form screen with optional pre-fill from voice assistant
 class ReportLostScreen extends ConsumerStatefulWidget {
   final bool showBackButton;
 
-  const ReportLostScreen({super.key, this.showBackButton = true});
+  // Pre-fill data from voice assistant
+  final String? preFillName;
+  final int? preFillAge;
+  final String? preFillGender;
+  final String? preFillHeight;
+  final String? preFillClothing;
+  final String? preFillLocation;
+  final String? preFillGuardianName;
+  final String? preFillGuardianPhone;
+  final String? preFillDescription;
+
+  const ReportLostScreen({
+    super.key,
+    this.showBackButton = true,
+    this.preFillName,
+    this.preFillAge,
+    this.preFillGender,
+    this.preFillHeight,
+    this.preFillClothing,
+    this.preFillLocation,
+    this.preFillGuardianName,
+    this.preFillGuardianPhone,
+    this.preFillDescription,
+  });
 
   @override
   ConsumerState<ReportLostScreen> createState() => _ReportLostScreenState();
@@ -32,6 +55,47 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
 
   final _repository = LostPersonRepository();
   final List<String> _genderOptions = ['Male', 'Female', 'Other'];
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill form if data provided from voice assistant
+    if (widget.preFillName != null) {
+      _nameController.text = widget.preFillName!;
+    }
+    if (widget.preFillAge != null) {
+      _ageController.text = widget.preFillAge.toString();
+    }
+    if (widget.preFillLocation != null) {
+      _locationController.text = widget.preFillLocation!;
+    }
+    if (widget.preFillGuardianName != null) {
+      _guardianNameController.text = widget.preFillGuardianName!;
+    }
+    if (widget.preFillGuardianPhone != null) {
+      _guardianPhoneController.text = widget.preFillGuardianPhone!;
+    }
+
+    // Build description from height and clothing if provided
+    final descriptionParts = <String>[];
+    if (widget.preFillHeight != null) {
+      descriptionParts.add('Height: ${widget.preFillHeight}');
+    }
+    if (widget.preFillClothing != null) {
+      descriptionParts.add('Clothing: ${widget.preFillClothing}');
+    }
+    if (widget.preFillDescription != null) {
+      descriptionParts.add(widget.preFillDescription!);
+    }
+    if (descriptionParts.isNotEmpty) {
+      _descriptionController.text = descriptionParts.join('. ');
+    }
+
+    // Set gender if provided
+    if (widget.preFillGender != null) {
+      _selectedGender = widget.preFillGender;
+    }
+  }
 
   @override
   void dispose() {

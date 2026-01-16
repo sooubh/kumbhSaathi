@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
 
   # UI & Icons
   cupertino_icons: ^1.0.8
@@ -50,8 +53,15 @@ dependencies:
   url_launcher: ^6.3.2
   intl: ^0.20.2
 
-  # Speech (commented out due to compatibility issues - add later)
-  speech_to_text: ^6.6.2
+  # AI & Speech
+  google_generative_ai: ^0.4.6
+  flutter_sound: ^9.2.13
+  logger: ^2.0.2
+
+  web_socket_channel: ^2.4.0
+  envied: ^1.3.2
+  speech_to_text: ^7.0.0
+
 
 dev_dependencies:
   flutter_test:
@@ -59,8 +69,10 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   hive_generator: ^2.0.1
   build_runner: ^2.4.13
+  envied_generator: ^1.1.1
 
 flutter:
+  generate: true
   uses-material-design: true
 
   assets:

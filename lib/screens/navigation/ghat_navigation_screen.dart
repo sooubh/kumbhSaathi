@@ -17,8 +17,15 @@ import '../../widgets/kumbh/panchavati_legend.dart';
 /// Ghat navigation screen with map and nearby ghats
 class GhatNavigationScreen extends ConsumerStatefulWidget {
   final bool showBackButton;
+  final String? initialSearchQuery;
+  final LatLng? targetLocation;
 
-  const GhatNavigationScreen({super.key, this.showBackButton = true});
+  const GhatNavigationScreen({
+    super.key,
+    this.showBackButton = true,
+    this.initialSearchQuery,
+    this.targetLocation,
+  });
 
   @override
   ConsumerState<GhatNavigationScreen> createState() =>
@@ -34,6 +41,24 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     'Medium Crowd',
     'High Crowd',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialSearchQuery != null) {
+      _searchController.text = widget.initialSearchQuery!;
+    }
+
+    // If target location is provided, set map center
+    if (widget.targetLocation != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(mapProvider.notifier).setCenter(widget.targetLocation!);
+        ref
+            .read(mapProvider.notifier)
+            .setZoom(PanchavatiConfig.maxZoom); // Zoom in on target
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -154,13 +179,6 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
           },
         ),
 
-        // Legend (Moved up to avoid bottom sheet)
-        Positioned(
-          left: 16,
-          bottom: 240, // Adjusted for min bottom sheet height
-          child: PanchavatiGhatLegend(isDark: isDark),
-        ),
-
         // Map Controls (Moved up)
         Positioned(
           right: 16,
@@ -168,9 +186,9 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
           child: _buildMapControls(context, isDark, ref),
         ),
 
-        // Focus Button
+        // Focus Button (Moved lower to avoid overlap with crowd labels)
         Positioned(
-          top: 140,
+          top: 200,
           right: 16,
           child: FocusPanchavatiButton(
             isDark: isDark,
@@ -361,16 +379,37 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
                           : AppColors.textMutedLight,
                       size: 22,
                     ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isListening ? Icons.mic : Icons.mic_none,
-                        color: _isListening
-                            ? AppColors.primaryBlue
-                            : (isDark
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Clear button
+                        if (_searchController.text.isNotEmpty)
+                          IconButton(
+                            icon: Icon(
+                              Icons.clear,
+                              color: isDark
                                   ? AppColors.textMutedDark
-                                  : AppColors.textMutedLight),
-                      ),
-                      onPressed: _listen,
+                                  : AppColors.textMutedLight,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                              });
+                            },
+                          ),
+                        // Voice search button
+                        IconButton(
+                          icon: Icon(
+                            _isListening ? Icons.mic : Icons.mic_none,
+                            color: _isListening
+                                ? AppColors.primaryBlue
+                                : (isDark
+                                      ? AppColors.textMutedDark
+                                      : AppColors.textMutedLight),
+                          ),
+                          onPressed: _listen,
+                        ),
+                      ],
                     ),
                   ),
                   style: TextStyle(
@@ -379,6 +418,17 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
                         : AppColors.textDarkLight,
                   ),
                 ),
+              ),
+              // Panchavati Ghats Dropdown Menu
+              PopupMenuButton<String>(
+                tooltip: 'Panchavati Ghats',
+                icon: Icon(
+                  Icons.location_city,
+                  color: isDark
+                      ? AppColors.textMutedDark
+                      : AppColors.textMutedLight,
+                ),
+                itemBuilder: (context) => _buildPanchavatiGhatsMenu(),
               ),
               // Filter Menu
               PopupMenuButton<String>(
@@ -609,14 +659,62 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     );
   }
 
+  List<PopupMenuEntry<String>> _buildPanchavatiGhatsMenu() {
+    final ghatNames = {
+      'someshwar_ghat': '1. Someshwar Ghat',
+      'ahilya_ghat': '2. Ahilya Ghat',
+      'naroshankar_ghat': '3. Naroshankar Ghat',
+      'ram_ghat': '4. Ram Ghat ⭐',
+      'kala_ram_ghat': '5. Kala Ram Ghat',
+      'ganga_ghat': '6. Ganga Ghat',
+      'tapovan_ghat': '7. Tapovan Ghat',
+    };
+
+    return [
+      PopupMenuItem<String>(
+        enabled: false,
+        child: Text(
+          'Panchavati Ghats',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: AppColors.primaryBlue,
+          ),
+        ),
+      ),
+      const PopupMenuDivider(),
+      ...PanchavatiConfig.ghatPilgrimageOrder.map((ghatId) {
+        final isMain = ghatId == 'ram_ghat';
+        return PopupMenuItem<String>(
+          enabled: false,
+          child: Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: isMain ? AppColors.primaryBlue : Colors.grey,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                ghatNames[ghatId] ?? ghatId,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isMain ? FontWeight.w700 : FontWeight.w500,
+                  color: isMain ? AppColors.primaryBlue : null,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    ];
+  }
+
   stt.SpeechToText _speech = stt.SpeechToText();
   bool _isListening = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _speech = stt.SpeechToText();
-  }
 
   void _listen() async {
     if (!_isListening) {
