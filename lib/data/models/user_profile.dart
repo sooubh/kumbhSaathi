@@ -1,5 +1,6 @@
 /// Model for user profile with emergency contacts and medical info
 library;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserProfile {

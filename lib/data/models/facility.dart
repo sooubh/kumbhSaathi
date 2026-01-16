@@ -1,5 +1,6 @@
 /// Model for a nearby facility
 library;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Facility {
