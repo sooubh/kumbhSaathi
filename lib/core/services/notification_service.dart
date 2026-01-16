@@ -2,11 +2,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// Background message handler (must be top-level function)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print('Handling background message: ${message.messageId}');
+  // Handle background messages silently
 }
 
 /// Notification service for Firebase Cloud Messaging
@@ -25,7 +26,14 @@ class NotificationService {
 
   /// Initialize notifications
   Future<void> initialize() async {
-    // Request permission
+    // Request notification permission (Android 13+ / iOS)
+    final permissionStatus = await _requestNotificationPermission();
+
+    if (!permissionStatus) {
+      return; // User denied permission
+    }
+
+    // Request FCM permission
     final settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
@@ -34,11 +42,13 @@ class NotificationService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted notification permission');
+      // Create notification channel for Android 8.0+
+      await _createNotificationChannel();
 
       // Initialize local notifications
-      const androidSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
       const iosSettings = DarwinInitializationSettings();
       const initSettings = InitializationSettings(
         android: androidSettings,
@@ -52,7 +62,6 @@ class NotificationService {
 
       // Get FCM token
       _fcmToken = await _messaging.getToken();
-      print('FCM Token: $_fcmToken');
 
       // Save token to Firestore
       if (_fcmToken != null) {
@@ -66,19 +75,51 @@ class NotificationService {
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
       // Configure background message handler
-      FirebaseMessaging.onBackgroundMessage(
-          firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       // Handle notification taps
       FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
     }
   }
 
+  /// Request notification permission for Android 13+
+  Future<bool> _requestNotificationPermission() async {
+    final status = await Permission.notification.status;
+
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (status.isDenied) {
+      final result = await Permission.notification.request();
+      return result.isGranted;
+    }
+
+    return false;
+  }
+
+  /// Create notification channel for Android 8.0+
+  Future<void> _createNotificationChannel() async {
+    const androidChannel = AndroidNotificationChannel(
+      'kumbhsaathi_channel',
+      'KumbhSaathi Notifications',
+      description: 'Notifications for Kumbh Mela updates and alerts',
+      importance: Importance.high,
+      playSound: true,
+    );
+
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(androidChannel);
+  }
+
   /// Save FCM token to Firestore
   Future<void> _saveTokenToFirestore(String token) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    
+
     try {
       await _firestore.collection('fcm_tokens').doc(user.uid).set({
         'token': token,
@@ -86,14 +127,12 @@ class NotificationService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Error saving FCM token: $e');
+      // Error saving token - fail silently in production
     }
   }
 
   /// Handle foreground messages
   void _handleForegroundMessage(RemoteMessage message) {
-    print('Foreground message received: ${message.messageId}');
-
     final notification = message.notification;
     final data = message.data;
 
@@ -143,25 +182,21 @@ class NotificationService {
 
   /// Handle notification tap
   void _onNotificationTap(NotificationResponse response) {
-    print('Notification tapped: ${response.payload}');
     // TODO: Navigate to relevant screen based on payload
   }
 
   void _handleNotificationTap(RemoteMessage message) {
-    print('Notification opened: ${message.data}');
     // TODO: Navigate based on message data
   }
 
   /// Subscribe to topic (for Kumbh Mela updates)
   Future<void> subscribeToTopic(String topic) async {
     await _messaging.subscribeToTopic(topic);
-    print('Subscribed to topic: $topic');
   }
 
   /// Unsubscribe from topic
   Future<void> unsubscribeFromTopic(String topic) async {
     await _messaging.unsubscribeFromTopic(topic);
-    print('Unsubscribed from topic: $topic');
   }
 
   /// Send notification to all users (Admin only)
@@ -221,10 +256,7 @@ class NotificationService {
       await _firestore.collection('notifications').add({
         'title': '🕉️ $title',
         'body': body,
-        'data': {
-          'type': 'kumbh_update',
-          'eventId': eventId ?? '',
-        },
+        'data': {'type': 'kumbh_update', 'eventId': eventId ?? ''},
         'type': 'kumbh_update',
         'topic': 'kumbh_updates',
         'createdAt': FieldValue.serverTimestamp(),
@@ -232,6 +264,58 @@ class NotificationService {
       });
     } catch (e) {
       throw Exception('Failed to send Kumbh update: $e');
+    }
+  }
+
+  /// Send crowd level update notification
+  Future<void> sendCrowdLevelNotification({
+    required String ghatName,
+    required String oldLevel,
+    required String newLevel,
+    String? customMessage,
+  }) async {
+    try {
+      // Generate appropriate icon and message based on the new crowd level
+      final String icon;
+      final String defaultMessage;
+
+      switch (newLevel.toLowerCase()) {
+        case 'low':
+          icon = '✅';
+          defaultMessage = '$ghatName is now less crowded! Good time to visit.';
+          break;
+        case 'medium':
+          icon = '📊';
+          defaultMessage = '$ghatName has moderate crowd levels.';
+          break;
+        case 'high':
+          icon = '⚠️';
+          defaultMessage =
+              '$ghatName is experiencing high crowd levels. Consider visiting later.';
+          break;
+        default:
+          icon = '📍';
+          defaultMessage = 'Crowd level updated at $ghatName';
+      }
+
+      final message = customMessage ?? defaultMessage;
+
+      await _firestore.collection('notifications').add({
+        'title': '$icon Crowd Update: $ghatName',
+        'body': message,
+        'data': {
+          'type': 'crowd_update',
+          'ghatName': ghatName,
+          'oldLevel': oldLevel,
+          'newLevel': newLevel,
+        },
+        'type': 'crowd_update',
+        'topic': 'all_users',
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+    } catch (e) {
+      throw Exception('Failed to send crowd level notification: $e');
     }
   }
 }

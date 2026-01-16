@@ -1,32 +1,133 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
+import * as functions from "firebase-functions/v1";
+import * as admin from "firebase-admin";
 
-import {setGlobalOptions} from "firebase-functions";
-import {onRequest} from "firebase-functions/https";
-import * as logger from "firebase-functions/logger";
+admin.initializeApp();
 
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
+// Send notification when a notification document is created
+export const sendNotification = functions.firestore
+  .document("notifications/{notificationId}")
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  .onCreate(async (snap, _context) => {
+    const notification = snap.data();
+    if (!notification) {
+      console.log("No data associated with the event");
+      return;
+    }
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+    console.log("Sending notification:", notification.title);
 
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+    const message = {
+      notification: {
+        title: notification.title,
+        body: notification.body,
+      },
+      data: notification.data || {},
+      topic: notification.topic || "all_users",
+    };
+
+    try {
+      const response = await admin.messaging().send(message);
+      console.log("Successfully sent notification:", response);
+
+      // Update status to sent
+      await snap.ref.update({
+        status: "sent",
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return response;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error("Error sending notification:", error);
+
+      // Update status to failed
+      await snap.ref.update({
+        status: "failed",
+        error: error.message,
+      });
+
+      throw error;
+    }
+  });
+
+// Auto-update crowd levels every 5 minutes
+// export const updateCrowdLevels = functions.pubsub
+//   .schedule("every 5 minutes")
+//   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+//   .onRun(async (_context) => {
+//     console.log("Auto-updating crowd levels...");
+
+//     const db = admin.firestore();
+//     const ghatsSnapshot = await db.collection("ghats").get();
+//     const locationsSnapshot = await db.collection("user_locations").get();
+
+//     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+//     const updates: Promise<any>[] = [];
+
+//     for (const ghatDoc of ghatsSnapshot.docs) {
+//       const ghat = ghatDoc.data();
+//       const ghatLat = ghat.latitude;
+//       const ghatLng = ghat.longitude;
+
+//       // Count users within 100m
+//       let nearbyCount = 0;
+//       locationsSnapshot.forEach((locDoc) => {
+//         const loc = locDoc.data();
+//         const distance = getDistance(
+//           ghatLat,
+//           ghatLng,
+//           loc.latitude,
+//           loc.longitude
+//         );
+//         if (distance < 0.1) {
+//           // 100m = 0.1km
+//           nearbyCount++;
+//         }
+//       });
+
+//       // Determine crowd level
+//       let crowdLevel = "low";
+//       if (nearbyCount >= 50) crowdLevel = "high";
+//       else if (nearbyCount >= 10) crowdLevel = "medium";
+
+//       // Update if changed
+//       if (ghat.crowdLevel !== crowdLevel) {
+//         updates.push(
+//           ghatDoc.ref.update({
+//             crowdLevel: crowdLevel,
+//             userCount: nearbyCount,
+//             lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+//           })
+//         );
+//       }
+//     }
+
+//     await Promise.all(updates);
+//     console.log(`Updated ${updates.length} ghats`);
+
+//     return null;
+//   });
+
+// Helper function to calculate distance
+function getDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function toRad(deg: number): number {
+  return deg * (Math.PI / 180);
+}

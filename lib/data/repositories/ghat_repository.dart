@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/ghat.dart';
 import '../../core/services/firebase_service.dart';
+import '../../core/services/notification_service.dart';
 
 /// Repository for ghats data
 class GhatRepository {
@@ -36,11 +37,37 @@ class GhatRepository {
   }
 
   /// Update crowd level (admin only)
-  Future<void> updateCrowdLevel(String id, CrowdLevel level) async {
+  Future<void> updateCrowdLevel(
+    String id,
+    CrowdLevel level, {
+    bool shouldNotify = false,
+    String? customMessage,
+  }) async {
+    // Get current ghat data for notification if needed
+    Ghat? ghat;
+    if (shouldNotify) {
+      ghat = await getGhatById(id);
+    }
+
     await _collection.doc(id).update({
       'crowdLevel': level.name,
       'lastUpdated': FieldValue.serverTimestamp(),
     });
+
+    // Send notification if enabled
+    if (shouldNotify && ghat != null) {
+      try {
+        await NotificationService().sendCrowdLevelNotification(
+          ghatName: ghat.name,
+          oldLevel: ghat.crowdLevel.name,
+          newLevel: level.name,
+          customMessage: customMessage,
+        );
+      } catch (e) {
+        print('Error sending crowd notification: $e');
+        // Don't fail the update if notification fails
+      }
+    }
   }
 
   /// Get ghats by crowd level

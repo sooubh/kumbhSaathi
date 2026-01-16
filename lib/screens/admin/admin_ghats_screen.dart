@@ -150,43 +150,71 @@ class _AdminGhatsScreenState extends ConsumerState<AdminGhatsScreen> {
 
   void _showEditGhatDialog(Ghat ghat) {
     CrowdLevel selectedLevel = ghat.crowdLevel;
+    bool notifyUsers = true;
+    final messageController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text('Update: ${ghat.name}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Update Crowd Level'),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<CrowdLevel>(
-                initialValue: selectedLevel,
-                items: CrowdLevel.values
-                    .map(
-                      (l) => DropdownMenuItem(
-                        value: l,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: _getCrowdColor(l),
-                                shape: BoxShape.circle,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Update Crowd Level'),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<CrowdLevel>(
+                  initialValue: selectedLevel,
+                  items: CrowdLevel.values
+                      .map(
+                        (l) => DropdownMenuItem(
+                          value: l,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: _getCrowdColor(l),
+                                  shape: BoxShape.circle,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(l.name.toUpperCase()),
-                          ],
+                              const SizedBox(width: 8),
+                              Text(l.name.toUpperCase()),
+                            ],
+                          ),
                         ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setDialogState(() => selectedLevel = v!),
-              ),
-            ],
+                      )
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => selectedLevel = v!),
+                ),
+                const SizedBox(height: 20),
+                CheckboxListTile(
+                  title: const Text('Notify Users'),
+                  subtitle: const Text(
+                    'Send app notification about this update',
+                  ),
+                  value: notifyUsers,
+                  onChanged: (v) => setDialogState(() => notifyUsers = v!),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (notifyUsers) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: messageController,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom Message (Optional)',
+                      hintText: 'Leave empty for default message',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -195,8 +223,27 @@ class _AdminGhatsScreenState extends ConsumerState<AdminGhatsScreen> {
             ),
             TextButton(
               onPressed: () async {
-                await _repository.updateCrowdLevel(ghat.id, selectedLevel);
-                if (context.mounted) Navigator.pop(context);
+                await _repository.updateCrowdLevel(
+                  ghat.id,
+                  selectedLevel,
+                  shouldNotify: notifyUsers,
+                  customMessage: messageController.text.isNotEmpty
+                      ? messageController.text.trim()
+                      : null,
+                );
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        notifyUsers
+                            ? 'Crowd level updated & notification sent'
+                            : 'Crowd level updated',
+                      ),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
               },
               child: const Text('Update'),
             ),
