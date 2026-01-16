@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:permission_handler/permission_handler.dart';
+
 import '../core/services/firestore_location_service.dart';
 import '../data/models/user_location_model.dart';
 
@@ -52,8 +52,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
   }
 
   bool _isStreamingToFirestore = false;
-  final FirestoreLocationService _firestoreService =
-      FirestoreLocationService();
+  final FirestoreLocationService _firestoreService = FirestoreLocationService();
 
   Future<bool> checkPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -82,16 +81,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
   Future<void> getCurrentLocation() async {
     state = state.copyWith(isLoading: true, error: null);
 
-    // Check permission first
-    final permissionStatus = await Permission.location.status;
-    if (!permissionStatus.isGranted) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Location permission not granted',
-      );
-      return;
-    }
-
+    // Request permission first
     final hasPermission = await checkPermission();
     if (!hasPermission) {
       state = state.copyWith(isLoading: false);

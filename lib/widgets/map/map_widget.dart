@@ -20,6 +20,7 @@ class MapWidget extends ConsumerStatefulWidget {
   final bool showUserLocation;
   final LatLng? userLocation;
   final bool enableInteraction;
+  final bool showSatellite;
 
   const MapWidget({
     super.key,
@@ -33,6 +34,7 @@ class MapWidget extends ConsumerStatefulWidget {
     this.showUserLocation = true,
     this.userLocation,
     this.enableInteraction = true,
+    this.showSatellite = false,
   });
 
   @override
@@ -74,15 +76,23 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
         ),
       ),
       children: [
-        // OpenStreetMap tile layer
-        TileLayer(
-          urlTemplate: isDark
-              ? 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png'
-              : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          subdomains: isDark ? const [] : const ['a', 'b', 'c'],
-          userAgentPackageName: 'com.kumbhsaathi.app',
-          maxZoom: 19,
-        ),
+        // Satellite or OpenStreetMap tile layer
+        if (widget.showSatellite)
+          TileLayer(
+            urlTemplate:
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            userAgentPackageName: 'com.kumbhsaathi.app',
+            maxZoom: 19,
+          )
+        else
+          TileLayer(
+            urlTemplate: isDark
+                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            subdomains: isDark ? const ['a', 'b', 'c'] : const ['a', 'b', 'c'],
+            userAgentPackageName: 'com.kumbhsaathi.app',
+            maxZoom: 19,
+          ),
 
         // Panchavati Area Highlight
         PolygonLayer(

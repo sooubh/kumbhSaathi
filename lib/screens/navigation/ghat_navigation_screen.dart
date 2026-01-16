@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../core/theme/app_colors.dart';
 import '../../core/config/panchavati_config.dart';
 import '../../data/models/ghat.dart';
@@ -76,408 +77,375 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
       backgroundColor: isDark
           ? AppColors.backgroundDark
           : AppColors.backgroundLight,
-      body: Column(
+      resizeToAvoidBottomInset: false,
+      body: Stack(
         children: [
-          // Header
-          _buildHeader(context, isDark),
-          // Map Area
-          Expanded(
-            child: Stack(
-              children: [
-                // OpenStreetMap
-                _buildMap(context, isDark),
-                // Crowd labels from Firestore data
-                ghatsAsync.when(
-                  loading: () => const SizedBox(),
-                  error: (_, __) => const SizedBox(),
-                  data: (ghats) {
-                    final highCrowd = ghats
-                        .where((g) => g.crowdLevel == CrowdLevel.high)
-                        .length;
-                    final lowCrowd = ghats
-                        .where((g) => g.crowdLevel == CrowdLevel.low)
-                        .length;
-                    return Stack(
-                      children: [
-                        if (highCrowd > 0)
-                          Positioned(
-                            top: 40,
-                            left: 20,
-                            child: _buildCrowdLabel(
-                              '$highCrowd HIGH CROWD',
-                              AppColors.emergency,
-                            ),
-                          ),
-                        if (lowCrowd > 0)
-                          Positioned(
-                            top: 100,
-                            right: 40,
-                            child: _buildCrowdLabel(
-                              '$lowCrowd LOW CROWD',
-                              AppColors.success,
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                // Panchavati Legend
-                Positioned(
-                  left: 16,
-                  bottom: 16,
-                  child: PanchavatiGhatLegend(isDark: isDark),
-                ),
-                // Focus Panchavati button
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: FocusPanchavatiButton(
-                    isDark: isDark,
-                    onTap: () {
-                      ref.read(mapProvider.notifier).setCenter(
-                            PanchavatiConfig.panchavatiCenter,
-                          );
-                      ref.read(mapProvider.notifier).setZoom(
-                            PanchavatiConfig.optimalZoom,
-                          );
-                    },
-                  ),
-                ),
-                // Map controls
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: _buildMapControls(context, isDark, ref),
-                ),
-              ],
-            ),
+          // Layer 1: Full Screen Map
+          Positioned.fill(child: _buildMapLayer(context, isDark, ghatsAsync)),
+
+          // Layer 2: Floating Header
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(child: _buildFloatingHeader(context, isDark)),
           ),
-          // Bottom Sheet with Firestore data
-          ghatsAsync.when(
-            loading: () => _buildLoadingBottomSheet(isDark),
-            error: (e, _) => _buildErrorBottomSheet(isDark, e.toString()),
-            data: (ghats) =>
-                _buildBottomSheet(context, isDark, _filterGhats(ghats)),
+
+          // Layer 3: Draggable Bottom Sheet
+          Positioned.fill(
+            child: ghatsAsync.when(
+              loading: () => const SizedBox(),
+              error: (_, __) => const SizedBox(),
+              data: (ghats) => _buildDraggableBottomSheet(
+                context,
+                isDark,
+                _filterGhats(ghats),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLoadingBottomSheet(bool isDark) {
-    return Container(
-      height: 280,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.backgroundDark : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: const Center(child: CircularProgressIndicator()),
-    );
-  }
+  Widget _buildMapLayer(
+    BuildContext context,
+    bool isDark,
+    AsyncValue<List<Ghat>> ghatsAsync,
+  ) {
+    return Stack(
+      children: [
+        // The Map
+        _buildMapBase(context, isDark),
 
-  Widget _buildErrorBottomSheet(bool isDark, String error) {
-    return Container(
-      height: 280,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.backgroundDark : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: AppColors.emergency),
-            const SizedBox(height: 16),
-            Text(
-              'Failed to load ghats',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.textDarkDark
-                    : AppColors.textDarkLight,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => ref.refresh(ghatsStreamProvider),
-              child: const Text('Retry'),
-            ),
-          ],
+        // Crowd Labels
+        ghatsAsync.when(
+          loading: () => const SizedBox(),
+          error: (_, __) => const SizedBox(),
+          data: (ghats) {
+            final highCrowd = ghats
+                .where((g) => g.crowdLevel == CrowdLevel.high)
+                .length;
+            final lowCrowd = ghats
+                .where((g) => g.crowdLevel == CrowdLevel.low)
+                .length;
+            return Stack(
+              children: [
+                if (highCrowd > 0)
+                  Positioned(
+                    top: 140, // Below header
+                    left: 16,
+                    child: _buildCrowdLabel(
+                      '$highCrowd HIGH CROWD',
+                      AppColors.emergency,
+                    ),
+                  ),
+                if (lowCrowd > 0)
+                  Positioned(
+                    top: 140,
+                    right: 16,
+                    child: _buildCrowdLabel(
+                      '$lowCrowd LOW CROWD',
+                      AppColors.success,
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
-      ),
-    );
-  }
 
-  Widget _buildHeader(BuildContext context, bool isDark) {
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 12,
-        left: 16,
-        right: 16,
-        bottom: 16,
-      ),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.backgroundDark : Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? AppColors.borderDark : const Color(0xFFE5E7EB),
+        // Legend (Moved up to avoid bottom sheet)
+        Positioned(
+          left: 16,
+          bottom: 240, // Adjusted for min bottom sheet height
+          child: PanchavatiGhatLegend(isDark: isDark),
+        ),
+
+        // Map Controls (Moved up)
+        Positioned(
+          right: 16,
+          bottom: 240,
+          child: _buildMapControls(context, isDark, ref),
+        ),
+
+        // Focus Button
+        Positioned(
+          top: 140,
+          right: 16,
+          child: FocusPanchavatiButton(
+            isDark: isDark,
+            onTap: () {
+              ref
+                  .read(mapProvider.notifier)
+                  .setCenter(PanchavatiConfig.panchavatiCenter);
+              ref
+                  .read(mapProvider.notifier)
+                  .setZoom(PanchavatiConfig.optimalZoom);
+            },
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildDraggableBottomSheet(
+    BuildContext context,
+    bool isDark,
+    List<Ghat> ghats,
+  ) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.35,
+      minChildSize: 0.15,
+      maxChildSize: 0.85,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Drag Handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.borderDark : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              // Header of Sheet
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Nearby Ghats',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      '${ghats.length} found',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // List
+              Expanded(
+                child: ghats.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No ghats match your filter',
+                          style: TextStyle(
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: ghats.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GhatCard(
+                              ghat: ghats[index],
+                              onNavigate: () {
+                                _startNavigation(
+                                  context,
+                                  ref,
+                                  LatLng(
+                                    ghats[index].latitude,
+                                    ghats[index].longitude,
+                                  ),
+                                  name: ghats[index].name,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFloatingHeader(BuildContext context, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.cardDark : Colors.white,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Title row
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  if (widget.showBackButton)
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.cardDark
-                              : const Color(0xFFF9FAFB),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isDark
-                                ? AppColors.borderDark
-                                : const Color(0xFFE5E7EB),
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.arrow_back,
-                          color: isDark
-                              ? AppColors.textDarkDark
-                              : AppColors.textDarkLight,
-                        ),
-                      ),
+              if (widget.showBackButton)
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(right: 12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.backgroundDark
+                          : Colors.grey[100],
+                      shape: BoxShape.circle,
                     ),
-                  if (widget.showBackButton) const SizedBox(width: 12),
-                  Text(
-                    'Ghat Navigation',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                    child: Icon(
+                      Icons.arrow_back,
+                      size: 20,
                       color: isDark
                           ? AppColors.textDarkDark
                           : AppColors.textDarkLight,
                     ),
                   ),
-                ],
+                ),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search Ghats...',
+                    hintStyle: TextStyle(
+                      color: isDark
+                          ? AppColors.textMutedDark
+                          : AppColors.textMutedLight,
+                      fontSize: 14,
+                    ),
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    icon: Icon(
+                      Icons.search,
+                      color: isDark
+                          ? AppColors.textMutedDark
+                          : AppColors.textMutedLight,
+                      size: 22,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isListening ? Icons.mic : Icons.mic_none,
+                        color: _isListening
+                            ? AppColors.primaryBlue
+                            : (isDark
+                                  ? AppColors.textMutedDark
+                                  : AppColors.textMutedLight),
+                      ),
+                      onPressed: _listen,
+                    ),
+                  ),
+                  style: TextStyle(
+                    color: isDark
+                        ? AppColors.textDarkDark
+                        : AppColors.textDarkLight,
+                  ),
+                ),
               ),
-              Row(
-                children: [
-                  // Offline badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: AppColors.success.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.cloud_done,
-                          size: 14,
-                          color: AppColors.success,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'SYNCED',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.success,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // SOS button
-                  GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/sos'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.emergency,
-                        borderRadius: BorderRadius.circular(100),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.emergency.withValues(alpha: 0.4),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.emergency_share,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'SOS',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              // Filter Menu
+              PopupMenuButton<String>(
+                initialValue: _selectedFilter,
+                onSelected: (value) => setState(() => _selectedFilter = value),
+                icon: Icon(
+                  Icons.filter_list,
+                  color: _selectedFilter == 'All Ghats'
+                      ? (isDark
+                            ? AppColors.textMutedDark
+                            : AppColors.textMutedLight)
+                      : AppColors.primaryBlue,
+                ),
+                itemBuilder: (context) => _filters.map((filter) {
+                  return PopupMenuItem(value: filter, child: Text(filter));
+                }).toList(),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Search bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.cardDark : const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark ? AppColors.borderDark : const Color(0xFFE5E7EB),
-              ),
-            ),
-            child: Row(
+          // Active Filter Chips (Horizontal)
+          if (_selectedFilter != 'All Ghats') ...[
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Icon(
-                  Icons.search,
-                  color: isDark
-                      ? AppColors.textMutedDark
-                      : AppColors.textMutedLight,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: 'Search Ghats...',
-                      hintStyle: TextStyle(
-                        color: isDark
-                            ? AppColors.textMutedDark
-                            : AppColors.textMutedLight,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primaryBlue),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _selectedFilter,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.primaryBlue,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _selectedFilter = 'All Ghats'),
+                        child: Icon(
+                          Icons.close,
+                          size: 14,
+                          color: AppColors.primaryBlue,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.mic,
-                    color: isDark
-                        ? AppColors.textMutedDark
-                        : AppColors.textMutedLight,
-                  ),
-                  onPressed: () {},
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          // Filter chips
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _filters.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final filter = _filters[index];
-                final isSelected = filter == _selectedFilter;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedFilter = filter),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primaryBlue
-                          : (isDark ? AppColors.cardDark : Colors.white),
-                      borderRadius: BorderRadius.circular(100),
-                      border: isSelected
-                          ? null
-                          : Border.all(
-                              color: isDark
-                                  ? AppColors.borderDark
-                                  : const Color(0xFFE5E7EB),
-                            ),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: AppColors.primaryBlue.withValues(
-                                  alpha: 0.3,
-                                ),
-                                blurRadius: 8,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          filter,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected
-                                ? Colors.white
-                                : (isDark
-                                      ? AppColors.textDarkDark
-                                      : AppColors.textDarkLight),
-                          ),
-                        ),
-                        if (isSelected) ...[
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.expand_more,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildMap(BuildContext context, bool isDark) {
+  Widget _buildMapBase(BuildContext context, bool isDark) {
     final locationState = ref.watch(locationProvider);
     final mapState = ref.watch(mapProvider);
     final routingState = ref.watch(routingProvider);
@@ -535,6 +503,7 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
           _showGhatDetails(context, marker.metadata!['ghat'] as Ghat);
         }
       },
+      showSatellite: mapState.showSatellite,
       onLongPress: (position) {
         // Start navigation to this point
         _startNavigation(context, ref, position);
@@ -553,16 +522,10 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
           children: [
             Text(
               ghat.name,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            Text(
-              ghat.description,
-              style: const TextStyle(fontSize: 14),
-            ),
+            Text(ghat.description, style: const TextStyle(fontSize: 14)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
@@ -602,7 +565,9 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
       locationState.currentPosition!.longitude,
     );
 
-    ref.read(routingProvider.notifier).setStartPoint(start, name: 'Your Location');
+    ref
+        .read(routingProvider.notifier)
+        .setStartPoint(start, name: 'Your Location');
     ref.read(routingProvider.notifier).setEndPoint(destination, name: name);
     ref.read(routingProvider.notifier).calculateRoute();
   }
@@ -644,11 +609,93 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     );
   }
 
+  stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isListening = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = stt.SpeechToText();
+  }
+
+  void _listen() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) {
+          if (val == 'done' || val == 'notListening') {
+            setState(() => _isListening = false);
+          }
+        },
+        onError: (val) {
+          setState(() => _isListening = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Voice error: ${val.errorMsg}')),
+          );
+        },
+      );
+      if (available) {
+        setState(() => _isListening = true);
+        _speech.listen(
+          onResult: (val) {
+            setState(() {
+              _searchController.text = val.recognizedWords;
+              // Trigger filter update
+            });
+          },
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Voice recognition not available')),
+        );
+      }
+    } else {
+      setState(() => _isListening = false);
+      _speech.stop();
+    }
+  }
+
   Widget _buildMapControls(BuildContext context, bool isDark, WidgetRef ref) {
     final mapState = ref.watch(mapProvider);
 
     return Column(
       children: [
+        // Satellite Toggle
+        GestureDetector(
+          onTap: () {
+            ref.read(mapProvider.notifier).toggleSatellite();
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: mapState.showSatellite
+                  ? AppColors.primaryBlue
+                  : (isDark ? AppColors.cardDark : Colors.white),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: mapState.showSatellite
+                    ? AppColors.primaryBlue
+                    : (isDark ? AppColors.borderDark : const Color(0xFFE5E7EB)),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: mapState.showSatellite
+                      ? AppColors.primaryBlue.withValues(alpha: 0.4)
+                      : Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.satellite_alt,
+              color: mapState.showSatellite
+                  ? Colors.white
+                  : (isDark ? AppColors.textDarkDark : AppColors.textDarkLight),
+              size: 20,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         // Location tracking button
         GestureDetector(
           onTap: () {
@@ -731,120 +778,6 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildBottomSheet(
-    BuildContext context,
-    bool isDark,
-    List<Ghat> ghats,
-  ) {
-    return Container(
-      padding: const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 24),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.backgroundDark : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border(
-          top: BorderSide(
-            color: isDark ? AppColors.borderDark : const Color(0xFFE5E7EB),
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, -10),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          Container(
-            width: 40,
-            height: 6,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.borderDark : const Color(0xFFE5E7EB),
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Nearby Ghats (${ghats.length})',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? AppColors.textDarkDark
-                      : AppColors.textDarkLight,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Text(
-                  'View All',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryBlue,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Ghat cards horizontal list
-          SizedBox(
-            height: 200,
-            child: ghats.isEmpty
-                ? Center(
-                    child: Text(
-                      'No ghats found',
-                      style: TextStyle(
-                        color: isDark
-                            ? AppColors.textMutedDark
-                            : AppColors.textMutedLight,
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: ghats.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
-                    itemBuilder: (context, index) {
-                      return GhatCard(
-                        ghat: ghats[index],
-                        onNavigate: () {
-                          // TODO: Start navigation
-                        },
-                      );
-                    },
-                  ),
-          ),
-          const SizedBox(height: 16),
-          // Home indicator
-          Container(
-            width: 128,
-            height: 4,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.borderDark : const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
