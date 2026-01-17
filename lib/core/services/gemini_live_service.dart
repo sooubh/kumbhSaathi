@@ -23,11 +23,17 @@ class GeminiLiveService {
   final _statusController = StreamController<String>.broadcast();
   Stream<String> get statusStream => _statusController.stream;
 
+  // Helper to safely add status without errors
+  void _safeAddStatus(String status) {
+    if (!_statusController.isClosed) {
+      _statusController.add(status);
+    }
+  }
+
+  Uint8List _pcmRemainder = Uint8List(0); // For handling odd-byte chunks
+
   StreamSubscription<Uint8List>? _audioSubscription;
   final StreamController<Uint8List> _recordingDataController =
-      StreamController<Uint8List>();
-
-  final StreamController<Uint8List> _playerFoodController =
       StreamController<Uint8List>();
 
   bool get isConnected => _isConnected;
@@ -49,8 +55,17 @@ class GeminiLiveService {
       _logger.d('CONNECTING TO: $url');
       _channel = WebSocketChannel.connect(Uri.parse(url));
 
+      // Wait for WebSocket to be ready
+      await _channel!.ready.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('WebSocket connection timeout');
+        },
+      );
+
       _isConnected = true;
-      _statusController.add('connected');
+      _safeAddStatus('connected');
+      _logger.i('✅ WebSocket Connected');
 
       // Listen to incoming messages (Audio/Json)
       _channel!.stream.listen(
@@ -63,6 +78,7 @@ class GeminiLiveService {
         },
         onDone: () {
           _logger.w('❌ WebSocket Closed');
+          _disconnect();
         },
       );
 
@@ -74,8 +90,8 @@ class GeminiLiveService {
         codec: Codec.pcm16,
         numChannels: 1,
         sampleRate: 24000,
-        bufferSize: 8192,
-        interleaved: false,
+        bufferSize: 16384,
+        interleaved: true,
       );
     } catch (e) {
       _logger.e('❌ Connection Failed: $e');
@@ -107,6 +123,30 @@ class GeminiLiveService {
     _logger.d('📤 Sent Setup Message');
   }
 
+  /// Send initial greeting prompt
+  void sendInitialGreeting(String userName) {
+    if (!_isConnected) return;
+
+    final greetingMsg = {
+      "client_content": {
+        "turns": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "text":
+                    "Please greet $userName warmly and introduce yourself as their Kumbh Mela assistant. Keep it brief and friendly.",
+              },
+            ],
+          },
+        ],
+        "turn_complete": true,
+      },
+    };
+    _channel?.sink.add(jsonEncode(greetingMsg));
+    _logger.d('📤 Sent Greeting Request');
+  }
+
   /// Start bidirectional audio streaming
   Future<void> startStreaming() async {
     if (!_isConnected || _isRecording) return;
@@ -118,20 +158,26 @@ class GeminiLiveService {
     }
 
     _isRecording = true;
-    _statusController.add('listening');
+    _safeAddStatus('listening');
 
     // Start Recorder to Stream
     await _recorder.startRecorder(
       toStream: _recordingDataController.sink,
       codec: Codec.pcm16,
       numChannels: 1,
-      sampleRate: 16000,
+      sampleRate: 24000, // 🔥 Must match Gemini (24kHz)
     );
 
     // Listen to the controller's stream
     _audioSubscription = _recordingDataController.stream.listen((data) {
       if (_isConnected && data.isNotEmpty) {
-        _sendAudioChunk(data);
+        // PCM16 safety: ensure even length
+        if (data.length % 2 != 0) {
+          data = data.sublist(0, data.length - 1);
+        }
+        if (data.isNotEmpty) {
+          _sendAudioChunk(data);
+        }
       }
     });
 
@@ -151,6 +197,7 @@ class GeminiLiveService {
     };
 
     _channel?.sink.add(jsonEncode(msg));
+    // _logger.v('📤 Sent Audio Chunk (${data.length} bytes)'); // Uncomment for heavy debug
   }
 
   /// Stop mic recording
@@ -164,9 +211,10 @@ class GeminiLiveService {
   }
 
   /// Handle incoming messages from Gemini
-  void _handleMessage(dynamic message) {
+  Future<void> _handleMessage(dynamic message) async {
     if (message is String) {
       try {
+        _logger.d('📥 Received: $message'); // Debug log
         final Map<String, dynamic> data = jsonDecode(message);
 
         // Handle ServerContent
@@ -176,53 +224,99 @@ class GeminiLiveService {
           // 1. Turn Interrupted
           if (content.containsKey('interrupted')) {
             _logger.w('⚡ Interrupted');
-            _player.stopPlayer();
-            _player.startPlayerFromStream(
+            await _player.stopPlayer();
+            _pcmRemainder = Uint8List(0); // Clear buffer
+
+            await _player.startPlayerFromStream(
               codec: Codec.pcm16,
               numChannels: 1,
               sampleRate: 24000,
-              bufferSize: 8192,
-              interleaved: false,
+              bufferSize: 16384,
+              interleaved: true,
             );
-            _statusController.add('interrupted');
+            _safeAddStatus('interrupted');
+            // Give UI a moment to show "Interrupted" then switch to "Listening"
+            Future.delayed(const Duration(milliseconds: 500), () {
+              _safeAddStatus('listening');
+            });
             return;
           }
 
           // 2. Model Turn (Audio Response)
           if (content.containsKey('modelTurn')) {
-            final parts = content['modelTurn']['parts'] as List;
-            for (var part in parts) {
-              if (part.containsKey('inlineData')) {
-                final mimeType = part['inlineData']['mime_type'];
-                final base64Data = part['inlineData']['data'];
+            final modelTurn = content['modelTurn'];
+            if (modelTurn['parts'] != null) {
+              final parts = modelTurn['parts'] as List;
+              for (var part in parts) {
+                if (part.containsKey('inlineData')) {
+                  final mimeType = part['inlineData']['mime_type'];
+                  final base64Data = part['inlineData']['data'];
 
-                if (mimeType.startsWith('audio/')) {
-                  _statusController.add('speaking');
-                  final audioBytes = base64Decode(base64Data);
-                  _playAudio(audioBytes);
+                  if (mimeType.startsWith('audio/')) {
+                    _safeAddStatus('speaking');
+                    final audioBytes = base64Decode(base64Data);
+                    _playAudio(audioBytes);
+                  }
                 }
               }
             }
           }
+
+          // 3. Turn Complete (Runs last to ensure 'listening' ignores previous 'speaking')
+          if (content.containsKey('turnComplete') &&
+              content['turnComplete'] == true) {
+            _safeAddStatus('listening');
+          }
+        } else {
+          _logger.w('⚠️ Unknown message format: ${data.keys.toList()}');
         }
       } catch (e) {
         _logger.e('Error parsing message: $e');
       }
+    } else if (message is Uint8List) {
+      // Handle binary PCM audio directly
+      try {
+        _safeAddStatus('speaking');
+        _playAudio(message);
+      } catch (e) {
+        _logger.e('Error playing binary audio: $e');
+      }
+    } else {
+      _logger.d('📥 Received Unknown Message Type: ${message.runtimeType}');
     }
   }
 
-  Future<void> _playAudio(Uint8List audioData) async {
-    // Write audio data directly to player
+  Future<void> _playAudio(Uint8List newData) async {
     try {
-      await _player.feedUint8FromStream(audioData);
+      // Merge remainder + new chunk
+      final merged = Uint8List(_pcmRemainder.length + newData.length);
+      merged.setAll(0, _pcmRemainder);
+      merged.setAll(_pcmRemainder.length, newData);
+
+      // PCM16 requires even length
+      final evenLength = merged.length - (merged.length % 2);
+
+      if (evenLength > 0) {
+        final playable = merged.sublist(0, evenLength);
+        await _player.feedUint8FromStream(playable);
+      }
+
+      // Save leftover byte (if any)
+      _pcmRemainder = merged.sublist(evenLength);
     } catch (e) {
-      _logger.e('Error feeding audio: $e');
+      _logger.e(
+        '❌ PCM decoding error: malformed 16-bit audio stream (unaligned buffer)',
+      );
     }
   }
 
-  void _disconnect() {
+  /// Disconnect without disposing resources (allows reconnection)
+  void disconnect() {
+    if (!_isConnected) return;
+
     _isConnected = false;
     _isRecording = false;
+
     _channel?.sink.close();
     _channel = null;
 
@@ -230,16 +324,31 @@ class GeminiLiveService {
     _player.stopPlayer();
     _audioSubscription?.cancel();
 
-    _statusController.add('disconnected');
+    _safeAddStatus('disconnected');
     _logger.i('🔌 Disconnected');
   }
 
+  /// Internal disconnect for error handling
+  void _disconnect() {
+    disconnect();
+  }
+
   void dispose() {
-    _disconnect();
+    // Disconnect first
+    if (_isConnected) {
+      disconnect();
+    }
+
+    // Close audio resources
     _recorder.closeRecorder();
     _player.closePlayer();
-    _statusController.close();
-    _recordingDataController.close();
-    _playerFoodController.close();
+
+    // Close controllers only after disconnecting
+    if (!_statusController.isClosed) {
+      _statusController.close();
+    }
+    if (!_recordingDataController.isClosed) {
+      _recordingDataController.close();
+    }
   }
 }

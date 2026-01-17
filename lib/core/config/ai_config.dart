@@ -3,15 +3,16 @@ import 'env.dart';
 /// AI Configuration for Gemini Integration
 class AIConfig {
   // Model configuration
-  // Model configuration
-  static const String modelName = 'gemini-2.0-flash-exp';
+  static const String modelName =
+      'gemini-2.5-flash-native-audio-preview-12-2025';
 
   static String get apiKey {
     return Env.geminiApiKey;
   }
 
   static String get wsUrl {
-    return 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=$apiKey';
+    return 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=' +
+        apiKey;
   }
 
   static bool get useMockMode => apiKey.isEmpty;
@@ -35,7 +36,7 @@ class AIConfig {
         userProfile?.emergencyContacts != null &&
             (userProfile.emergencyContacts as List).isNotEmpty
         ? (userProfile.emergencyContacts as List)
-              .map((c) => '${c.name} (${c.relationship}): ${c.phone}')
+              .map((c) => '${c.name} (${c.relation}): ${c.phone}')
               .join(', ')
         : 'None';
 

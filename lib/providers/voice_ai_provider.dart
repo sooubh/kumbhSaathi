@@ -73,10 +73,15 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
       _statusSubscription = _service.statusStream.listen((status) {
         switch (status) {
           case 'connected':
-            // Ready
+            // Connection established, reset processing state
+            state = state.copyWith(isProcessing: false, clearError: true);
             break;
           case 'listening':
-            state = state.copyWith(isListening: true, isSpeaking: false);
+            state = state.copyWith(
+              isListening: true,
+              isSpeaking: false,
+              isProcessing: false,
+            );
             break;
           case 'speaking':
             state = state.copyWith(isSpeaking: true, isListening: false);
@@ -86,7 +91,11 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
             state = state.copyWith(isSpeaking: false);
             break;
           case 'disconnected':
-            state = state.copyWith(isListening: false, isSpeaking: false);
+            state = state.copyWith(
+              isListening: false,
+              isSpeaking: false,
+              isProcessing: false,
+            );
             break;
         }
       });
@@ -126,6 +135,12 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
     try {
       final prompt = _getSystemPrompt();
       await _service.startSession(prompt);
+
+      // Send initial greeting after connection
+      final userProfile = ref.read(currentProfileProvider);
+      final userName = userProfile?.name ?? 'Friend';
+      _service.sendGreeting(userName);
+
       // Status update will come from stream ('connected' -> 'listening')
     } catch (e) {
       state = state.copyWith(

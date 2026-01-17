@@ -52,8 +52,7 @@ class VoiceAIService {
   /// Stop Session
   Future<void> endSession() async {
     await _liveService.stopStreaming();
-    _liveService.dispose();
-    // Re-initialize for next use if needed, or handle in dispose
+    _liveService.disconnect(); // Don't dispose, allow reconnection
   }
 
   /// Toggle Mic Mute (if implementing push-to-talk inside live)
@@ -63,6 +62,11 @@ class VoiceAIService {
     } else {
       await _liveService.startStreaming();
     }
+  }
+
+  /// Send initial greeting
+  void sendGreeting(String userName) {
+    _liveService.sendInitialGreeting(userName);
   }
 
   void dispose() {
