@@ -105,7 +105,7 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
         error: initialized ? null : 'Failed to initialize voice service',
       );
     } catch (e) {
-      state = state.copyWith(error: 'Initialization error: $e');
+      state = state.copyWith(error: 'Init error: ${e.toString()}');
     }
   }
 
@@ -145,7 +145,8 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
     } catch (e) {
       state = state.copyWith(
         isProcessing: false,
-        error: 'Connection failed: $e',
+        error:
+            'Connection failed: ${e.toString().replaceAll('Exception: ', '')}',
       );
     }
   }

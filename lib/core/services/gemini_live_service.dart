@@ -6,6 +6,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:logger/logger.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:audio_session/audio_session.dart';
 import '../config/ai_config.dart';
 
 /// Service for interacting with Gemini Multimodal Live API (WebSocket)
@@ -40,10 +41,35 @@ class GeminiLiveService {
 
   /// Initialize Audio Streams
   Future<void> initialize() async {
+    // Configure Audio Session
+    final session = await AudioSession.instance;
+    await session.configure(
+      const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.defaultToSpeaker |
+            AVAudioSessionCategoryOptions.allowBluetooth |
+            AVAudioSessionCategoryOptions.allowAirPlay,
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        avAudioSessionRouteSharingPolicy:
+            AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          flags: AndroidAudioFlags.none,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ),
+    );
+
     await _recorder.openRecorder();
     await _player.openPlayer();
 
-    _logger.i('✅ GeminiLiveService: Audio streams init (flutter_sound)');
+    _logger.i(
+      '✅ GeminiLiveService: Audio streams init (flutter_sound + audio_session)',
+    );
   }
 
   /// Connect to Gemini WebSocket
@@ -165,7 +191,7 @@ class GeminiLiveService {
       toStream: _recordingDataController.sink,
       codec: Codec.pcm16,
       numChannels: 1,
-      sampleRate: 24000, // 🔥 Must match Gemini (24kHz)
+      sampleRate: 16000, // 🔥 Changed to 16kHz for better device compatibility
     );
 
     // Listen to the controller's stream
