@@ -69,5 +69,5 @@ class VoiceAIService {
 
   // Legacy/Mock compatibility (if needed for rest of app, otherwise remove)
   // For now, we will stub or minimal
-  get isMockMode => false;
+  bool get isMockMode => false;
 }

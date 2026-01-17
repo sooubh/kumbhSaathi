@@ -227,7 +227,7 @@ class _ProfileCreationScreenState extends ConsumerState<ProfileCreationScreen> {
 
               // Gender
               DropdownButtonFormField<String>(
-                value: _selectedGender,
+                initialValue: _selectedGender,
                 decoration: InputDecoration(
                   labelText: 'Gender',
                   border: OutlineInputBorder(

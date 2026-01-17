@@ -713,7 +713,7 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     ];
   }
 
-  stt.SpeechToText _speech = stt.SpeechToText();
+  final stt.SpeechToText _speech = stt.SpeechToText();
   bool _isListening = false;
 
   void _listen() async {

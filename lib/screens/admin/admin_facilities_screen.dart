@@ -4,7 +4,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/services/firebase_service.dart';
 import '../../data/models/facility.dart';
 import '../../data/repositories/facility_repository.dart';
-import 'admin_facility_detail_screen.dart';
 
 class AdminFacilitiesScreen extends ConsumerStatefulWidget {
   const AdminFacilitiesScreen({super.key});

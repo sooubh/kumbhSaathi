@@ -82,7 +82,7 @@ class FacilityDetailSheet extends StatelessWidget {
               const SizedBox(height: 16),
 
               // Address
-              if (facility.address.isNotEmpty) ...[
+              if (facility.address != null && facility.address!.isNotEmpty) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -90,7 +90,7 @@ class FacilityDetailSheet extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        facility.address,
+                        facility.address!,
                         style: TextStyle(
                           fontSize: 14,
                           color: isDark
