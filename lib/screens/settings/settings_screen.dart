@@ -5,6 +5,7 @@ import '../../providers/theme_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../admin/admin_dashboard_screen.dart';
+import 'my_submitted_facilities_screen.dart';
 
 /// Settings screen
 class SettingsScreen extends ConsumerWidget {

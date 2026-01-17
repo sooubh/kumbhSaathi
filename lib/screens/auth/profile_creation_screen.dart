@@ -24,6 +24,7 @@ class _ProfileCreationScreenState extends ConsumerState<ProfileCreationScreen> {
 
   DateTime? _selectedDate;
   String? _selectedBloodGroup;
+  String? _selectedGender;
   bool _isLoading = false;
 
   final List<String> _bloodGroups = [
@@ -36,6 +37,8 @@ class _ProfileCreationScreenState extends ConsumerState<ProfileCreationScreen> {
     'AB+',
     'AB-',
   ];
+
+  final List<String> _genders = ['Male', 'Female', 'Other'];
 
   @override
   void initState() {
@@ -103,6 +106,7 @@ class _ProfileCreationScreenState extends ConsumerState<ProfileCreationScreen> {
         phone: _phoneController.text.trim(),
         dateOfBirth: _selectedDate,
         age: age,
+        gender: _selectedGender,
         bloodGroup: _selectedBloodGroup,
         photoUrl: user.photoURL,
         isVerified: true, // Mark as verified since they completed the flow
@@ -218,6 +222,24 @@ class _ProfileCreationScreenState extends ConsumerState<ProfileCreationScreen> {
                 ),
                 readOnly: true,
                 onTap: () => _selectDate(context),
+              ),
+              const SizedBox(height: 16),
+
+              // Gender
+              DropdownButtonFormField<String>(
+                value: _selectedGender,
+                decoration: InputDecoration(
+                  labelText: 'Gender',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.person_outline),
+                ),
+                items: _genders
+                    .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedGender = v),
+                validator: (v) => v == null ? 'Please select gender' : null,
               ),
               const SizedBox(height: 16),
 

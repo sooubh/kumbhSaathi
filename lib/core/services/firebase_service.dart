@@ -74,6 +74,7 @@ class FirestoreCollections {
   static const String lostPersons = 'lost_persons';
   static const String ghats = 'ghats';
   static const String facilities = 'facilities';
+  static const String facilityRoutes = 'facility_routes';
   static const String emergencyAlerts = 'emergency_alerts';
   static const String settings = 'settings';
 }

@@ -85,14 +85,39 @@ class FacilityRepository {
   }
 
   /// Approve a facility
-  Future<void> approveFacility(String id) async {
+  Future<void> approveFacility(String id, String reviewerId) async {
     try {
       await _firestore
           .collection(FirestoreCollections.facilities)
           .doc(id)
-          .update({'status': 'approved'});
+          .update({
+            'status': 'approved',
+            'reviewedBy': reviewerId,
+            'reviewedAt': Timestamp.now(),
+          });
     } catch (e) {
       throw Exception('Failed to approve facility: $e');
+    }
+  }
+
+  /// Reject a facility with reason
+  Future<void> rejectFacility(
+    String id,
+    String reviewerId,
+    String reason,
+  ) async {
+    try {
+      await _firestore
+          .collection(FirestoreCollections.facilities)
+          .doc(id)
+          .update({
+            'status': 'rejected',
+            'rejectionReason': reason,
+            'reviewedBy': reviewerId,
+            'reviewedAt': Timestamp.now(),
+          });
+    } catch (e) {
+      throw Exception('Failed to reject facility: $e');
     }
   }
 
@@ -106,6 +131,27 @@ class FacilityRepository {
     } catch (e) {
       throw Exception('Failed to delete facility: $e');
     }
+  }
+
+  /// Get facilities submitted by a specific user
+  Stream<List<Facility>> getMyFacilities(String userId) {
+    return _firestore
+        .collection(FirestoreCollections.facilities)
+        .where('submittedBy', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+          final facilities = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return Facility.fromJson({...data, 'id': doc.id});
+          }).toList();
+          // Sort by submission date (newest first)
+          facilities.sort(
+            (a, b) => (b.submittedAt ?? DateTime.now()).compareTo(
+              a.submittedAt ?? DateTime.now(),
+            ),
+          );
+          return facilities;
+        });
   }
 
   /// Seed initial facilities data

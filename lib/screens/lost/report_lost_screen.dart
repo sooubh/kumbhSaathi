@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -148,14 +149,14 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
             : null,
       );
 
-      // Save to Firestore
-      await _repository.reportLostPerson(lostPerson);
+      // Save to Firestore first
+      final docId = await _repository.reportLostPerson(lostPerson);
 
-      // TODO: Upload photo to Firebase Storage if selected
-      // if (_selectedImage != null) {
-      //   final photoUrl = await _uploadPhoto(docId);
-      //   await _repository.updatePhotoUrl(docId, photoUrl);
-      // }
+      // Upload photo to Firebase Storage if selected
+      if (_selectedImage != null) {
+        final photoUrl = await _uploadPhoto(docId);
+        await _repository.updatePhotoUrl(docId, photoUrl);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -182,6 +183,31 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<String> _uploadPhoto(String reportId) async {
+    if (_selectedImage == null) {
+      throw Exception('No image selected');
+    }
+
+    try {
+      final storageRef = FirebaseService.storage.ref();
+      final photoRef = storageRef.child(
+        'lost_persons/$reportId/${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      // Upload file
+      final uploadTask = photoRef.putFile(File(_selectedImage!.path));
+
+      // Wait for upload to complete
+      await uploadTask;
+
+      // Get download URL
+      final downloadUrl = await photoRef.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      throw Exception('Failed to upload photo: $e');
     }
   }
 
@@ -361,8 +387,8 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(14),
-                                    child: Image.asset(
-                                      _selectedImage!.path,
+                                    child: Image.file(
+                                      File(_selectedImage!.path),
                                       fit: BoxFit.cover,
                                       width: double.infinity,
                                       height: double.infinity,

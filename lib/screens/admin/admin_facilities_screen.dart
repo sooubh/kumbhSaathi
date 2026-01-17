@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/services/firebase_service.dart';
 import '../../data/models/facility.dart';
 import '../../data/repositories/facility_repository.dart';
+import 'admin_facility_detail_screen.dart';
 
 class AdminFacilitiesScreen extends ConsumerStatefulWidget {
   const AdminFacilitiesScreen({super.key});
@@ -170,8 +172,14 @@ class _AdminFacilitiesScreenState extends ConsumerState<AdminFacilitiesScreen>
                         children: [
                           IconButton(
                             icon: const Icon(Icons.check, color: Colors.green),
-                            onPressed: () =>
-                                _repository.approveFacility(facility.id),
+                            onPressed: () {
+                              final reviewerId =
+                                  FirebaseService.currentUserId ?? 'admin';
+                              _repository.approveFacility(
+                                facility.id,
+                                reviewerId,
+                              );
+                            },
                           ),
                           IconButton(
                             icon: const Icon(Icons.close, color: Colors.red),

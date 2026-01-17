@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/facility.dart';
 import '../../data/repositories/facility_repository.dart';
 import '../../providers/auth_provider.dart';
+import 'map_marker_selector_screen.dart';
 
 class AddFacilityScreen extends ConsumerStatefulWidget {
   const AddFacilityScreen({super.key});
@@ -26,6 +28,8 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
   FacilityType _selectedType = FacilityType.other;
   bool _isLoading = false;
   Position? _currentPosition;
+  LatLng? _selectedLocation;
+  String? _selectedAddress;
 
   @override
   void initState() {
@@ -36,20 +40,41 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
   Future<void> _getCurrentLocation() async {
     try {
       final position = await Geolocator.getCurrentPosition();
-      setState(() => _currentPosition = position);
+      setState(() {
+        _currentPosition = position;
+        // Auto-set as selected location
+        _selectedLocation = LatLng(position.latitude, position.longitude);
+      });
     } catch (e) {
       // Handle location error silently or show snackbar
       debugPrint('Location error: $e');
     }
   }
 
+  Future<void> _openMapSelector() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MapMarkerSelectorScreen(
+          initialPosition: _selectedLocation,
+          initialAddress: _selectedAddress,
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _selectedLocation = result['position'] as LatLng;
+        _selectedAddress = result['address'] as String;
+      });
+    }
+  }
+
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_currentPosition == null) {
+    if (_selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Location is required. Please enable GPS.'),
-        ),
+        const SnackBar(content: Text('Please select location on map.')),
       );
       return;
     }
@@ -65,8 +90,8 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
             ? _nameController.text.trim()
             : _nameHindiController.text.trim(),
         type: _selectedType,
-        latitude: _currentPosition!.latitude,
-        longitude: _currentPosition!.longitude,
+        latitude: _selectedLocation!.latitude,
+        longitude: _selectedLocation!.longitude,
         distanceMeters: 0, // Calculated dynamically later
         walkTimeMinutes: 0,
         address: _addressController.text.trim(),
@@ -209,20 +234,86 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Location Status
-              if (_currentPosition == null)
-                const Center(child: CircularProgressIndicator())
-              else
-                Row(
-                  children: [
-                    const Icon(Icons.check_circle, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Location detected: ${_currentPosition!.latitude.toStringAsFixed(4)}, ${_currentPosition!.longitude.toStringAsFixed(4)}',
+              // Map Location Selector Button
+              OutlinedButton.icon(
+                onPressed: _openMapSelector,
+                icon: const Icon(Icons.map),
+                label: const Text('SELECT EXACT LOCATION ON MAP'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: BorderSide(color: AppColors.primaryBlue),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Selected Location Display
+              if (_selectedLocation != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedAddress ?? 'Location selected',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${_selectedLocation!.latitude.toStringAsFixed(6)}, ${_selectedLocation!.longitude.toStringAsFixed(6)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                )
+              else if (_currentPosition == null)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.orange),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Tap the button above to place marker on map',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               const SizedBox(height: 32),
 

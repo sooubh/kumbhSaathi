@@ -1,4 +1,19 @@
 {
-    "indexes": [],
+    "indexes": [
+        {
+            "collectionGroup": "lost_persons",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "reportedBy",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "reportedAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        }
+    ],
     "fieldOverrides": []
 }

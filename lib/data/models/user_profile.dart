@@ -7,6 +7,7 @@ class UserProfile {
   final String id;
   final String name;
   final int age;
+  final String? gender;
   final String? bloodGroup;
   final String? photoUrl;
   final String? phone;
@@ -20,6 +21,7 @@ class UserProfile {
     required this.id,
     required this.name,
     required this.age,
+    this.gender,
     this.bloodGroup,
     this.photoUrl,
     this.phone,
@@ -35,6 +37,7 @@ class UserProfile {
       id: json['id'] as String,
       name: json['name'] as String,
       age: json['age'] as int,
+      gender: json['gender'] as String?,
       bloodGroup: json['bloodGroup'] as String?,
       photoUrl: json['photoUrl'] as String?,
       phone: json['phone'] as String?,
@@ -59,6 +62,7 @@ class UserProfile {
       'id': id,
       'name': name,
       'age': age,
+      'gender': gender,
       'bloodGroup': bloodGroup,
       'photoUrl': photoUrl,
       'phone': phone,
@@ -76,6 +80,7 @@ class UserProfile {
     String? id,
     String? name,
     int? age,
+    String? gender,
     String? bloodGroup,
     String? photoUrl,
     String? phone,
@@ -89,6 +94,7 @@ class UserProfile {
       id: id ?? this.id,
       name: name ?? this.name,
       age: age ?? this.age,
+      gender: gender ?? this.gender,
       bloodGroup: bloodGroup ?? this.bloodGroup,
       photoUrl: photoUrl ?? this.photoUrl,
       phone: phone ?? this.phone,
