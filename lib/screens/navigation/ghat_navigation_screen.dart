@@ -120,7 +120,7 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
           Positioned.fill(
             child: ghatsAsync.when(
               loading: () => const SizedBox(),
-              error: (_, __) => const SizedBox(),
+              error: (error, stackTrace) => const SizedBox(),
               data: (ghats) => _buildDraggableBottomSheet(
                 context,
                 isDark,
@@ -146,7 +146,7 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
         // Crowd Labels
         ghatsAsync.when(
           loading: () => const SizedBox(),
-          error: (_, __) => const SizedBox(),
+          error: (error, stackTrace) => const SizedBox(),
           data: (ghats) {
             final highCrowd = ghats
                 .where((g) => g.crowdLevel == CrowdLevel.high)
@@ -512,7 +512,7 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     // Build markers from ghats
     final markers = ghatsAsync.when(
       loading: () => <CustomMapMarker>[],
-      error: (_, __) => <CustomMapMarker>[],
+      error: (error, stackTrace) => <CustomMapMarker>[],
       data: (ghats) {
         return ghats.map((ghat) {
           Color crowdColor;
@@ -720,17 +720,22 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     if (!_isListening) {
       bool available = await _speech.initialize(
         onStatus: (val) {
+          if (!mounted) return;
           if (val == 'done' || val == 'notListening') {
             setState(() => _isListening = false);
           }
         },
         onError: (val) {
+          if (!mounted) return;
           setState(() => _isListening = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Voice error: ${val.errorMsg}')),
           );
         },
       );
+
+      if (!mounted) return;
+
       if (available) {
         setState(() => _isListening = true);
         _speech.listen(

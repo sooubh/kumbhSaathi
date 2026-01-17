@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../core/theme/app_colors.dart';
@@ -23,7 +24,7 @@ class MapMarkerSelectorScreen extends StatefulWidget {
 }
 
 class _MapMarkerSelectorScreenState extends State<MapMarkerSelectorScreen> {
-  final Completer<GoogleMapController> _controllerCompleter = Completer();
+  final MapController _mapController = MapController();
   LatLng? _selectedPosition;
   String _selectedAddress = 'Fetching address...';
   bool _isLoading = true;
@@ -78,7 +79,7 @@ class _MapMarkerSelectorScreenState extends State<MapMarkerSelectorScreen> {
 
     // Get current position
     final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
 
     _selectedPosition = LatLng(position.latitude, position.longitude);
@@ -115,7 +116,7 @@ class _MapMarkerSelectorScreenState extends State<MapMarkerSelectorScreen> {
     }
   }
 
-  void _onMapTapped(LatLng position) {
+  void _onMapTapped(TapPosition tapPosition, LatLng position) {
     setState(() => _selectedPosition = position);
     _getAddressFromLatLng(position);
   }
@@ -132,15 +133,16 @@ class _MapMarkerSelectorScreenState extends State<MapMarkerSelectorScreen> {
   Future<void> _moveToCurrentLocation() async {
     try {
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       final newPosition = LatLng(position.latitude, position.longitude);
       setState(() => _selectedPosition = newPosition);
       await _getAddressFromLatLng(newPosition);
 
-      final controller = await _controllerCompleter.future;
-      controller.animateCamera(CameraUpdate.newLatLngZoom(newPosition, 16));
+      _mapController.move(newPosition, 16);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -176,33 +178,60 @@ class _MapMarkerSelectorScreenState extends State<MapMarkerSelectorScreen> {
       ),
       body: Stack(
         children: [
-          // Google Map
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: _selectedPosition!,
-              zoom: 16,
+          // Flutter Map
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _selectedPosition!,
+              initialZoom: 16,
+              minZoom: 10,
+              maxZoom: 19,
+              onTap: _onMapTapped,
             ),
-            onMapCreated: (controller) {
-              _controllerCompleter.complete(controller);
-            },
-            onTap: _onMapTapped,
-            markers: _selectedPosition != null
-                ? {
+            children: [
+              // Tile Layer
+              TileLayer(
+                urlTemplate: isDark
+                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                userAgentPackageName: 'com.kumbhsaathi.app',
+                maxZoom: 19,
+              ),
+
+              // Selected marker
+              if (_selectedPosition != null)
+                MarkerLayer(
+                  markers: [
                     Marker(
-                      markerId: const MarkerId('selected'),
-                      position: _selectedPosition!,
-                      draggable: true,
-                      onDragEnd: (newPosition) {
-                        setState(() => _selectedPosition = newPosition);
-                        _getAddressFromLatLng(newPosition);
-                      },
+                      point: _selectedPosition!,
+                      width: 50,
+                      height: 50,
+                      child: GestureDetector(
+                        onPanUpdate: (details) {
+                          // Simple drag implementation
+                          final newLat =
+                              _selectedPosition!.latitude -
+                              (details.delta.dy * 0.0001);
+                          final newLng =
+                              _selectedPosition!.longitude +
+                              (details.delta.dx * 0.0001);
+                          final newPosition = LatLng(newLat, newLng);
+                          setState(() => _selectedPosition = newPosition);
+                        },
+                        onPanEnd: (details) {
+                          _getAddressFromLatLng(_selectedPosition!);
+                        },
+                        child: Icon(
+                          Icons.location_on,
+                          color: AppColors.primaryOrange,
+                          size: 50,
+                        ),
+                      ),
                     ),
-                  }
-                : {},
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
+                  ],
+                ),
+            ],
           ),
 
           // Address Info Card
@@ -285,7 +314,7 @@ class _MapMarkerSelectorScreenState extends State<MapMarkerSelectorScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withOpacity(0.9),
+                color: AppColors.primaryBlue.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -321,5 +350,11 @@ class _MapMarkerSelectorScreenState extends State<MapMarkerSelectorScreen> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
   }
 }

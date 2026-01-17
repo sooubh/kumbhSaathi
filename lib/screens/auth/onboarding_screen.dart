@@ -117,7 +117,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             width: 200,
             height: 200,
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => Container(
+            errorBuilder: (context, error, stackTrace) => Container(
               width: 150,
               height: 150,
               decoration: BoxDecoration(
@@ -330,11 +330,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
                         height: 24,
                         width: 24,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.g_mobiledata,
-                          size: 32,
-                          color: Colors.blue,
-                        ),
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(
+                              Icons.g_mobiledata,
+                              size: 32,
+                              color: Colors.blue,
+                            ),
                       ),
                       const SizedBox(width: 12),
                       Text(

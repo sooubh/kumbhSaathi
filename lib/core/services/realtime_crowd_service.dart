@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:logger/logger.dart';
 import '../../data/models/ghat.dart';
 
 /// Service for realtime crowd monitoring at ghats
@@ -9,6 +10,7 @@ class RealtimeCrowdService {
   RealtimeCrowdService._internal();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _logger = Logger();
 
   /// Stream realtime crowd levels for all ghats
   Stream<Map<String, CrowdLevel>> streamCrowdLevels() {
@@ -52,8 +54,9 @@ class RealtimeCrowdService {
       final ghatsSnapshot = await _firestore.collection('ghats').get();
 
       // Get all user locations
-      final locationsSnapshot =
-          await _firestore.collection('user_locations').get();
+      final locationsSnapshot = await _firestore
+          .collection('user_locations')
+          .get();
 
       for (final ghatDoc in ghatsSnapshot.docs) {
         final ghatData = ghatDoc.data();
@@ -99,7 +102,7 @@ class RealtimeCrowdService {
         });
       }
     } catch (e) {
-      print('Auto-update crowd levels failed: $e');
+      _logger.e('Auto-update crowd levels failed: $e');
     }
   }
 
@@ -147,10 +150,7 @@ class RealtimeCrowdService {
         'timestamp': DateTime.now(),
       };
     } catch (e) {
-      return {
-        'error': e.toString(),
-        'timestamp': DateTime.now(),
-      };
+      return {'error': e.toString(), 'timestamp': DateTime.now()};
     }
   }
 

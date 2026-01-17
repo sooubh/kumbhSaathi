@@ -41,10 +41,12 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
         endLocationId: widget.endLocationId,
       );
 
-      setState(() {
-        _paths = paths;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _paths = paths;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -58,9 +60,11 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
       await CustomPathService().upvotePath(pathId, userId);
       _loadPaths(); // Reload to get updated votes
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to vote: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to vote: $e')));
+      }
     }
   }
 
@@ -69,8 +73,9 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? AppColors.backgroundDark
+          : AppColors.backgroundLight,
       appBar: AppBar(
         title: const Text('Community Paths'),
         backgroundColor: isDark ? AppColors.backgroundDark : Colors.white,
@@ -96,14 +101,14 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _paths.isEmpty
-              ? _buildEmptyState(isDark)
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _paths.length,
-                  itemBuilder: (context, index) {
-                    return _buildPathCard(_paths[index], isDark);
-                  },
-                ),
+          ? _buildEmptyState(isDark)
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _paths.length,
+              itemBuilder: (context, index) {
+                return _buildPathCard(_paths[index], isDark);
+              },
+            ),
     );
   }
 
@@ -123,15 +128,16 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color:
-                  isDark ? AppColors.textDarkDark : AppColors.textDarkLight,
+              color: isDark ? AppColors.textDarkDark : AppColors.textDarkLight,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Be the first to record a path!',
             style: TextStyle(
-              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+              color: isDark
+                  ? AppColors.textMutedDark
+                  : AppColors.textMutedLight,
             ),
           ),
           const SizedBox(height: 24),
@@ -248,8 +254,9 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
               path.description,
               style: TextStyle(
                 fontSize: 13,
-                color:
-                    isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                color: isDark
+                    ? AppColors.textMutedDark
+                    : AppColors.textMutedLight,
               ),
             ),
           ],
@@ -338,7 +345,11 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                icon: const Icon(Icons.navigation, size: 16, color: Colors.white),
+                icon: const Icon(
+                  Icons.navigation,
+                  size: 16,
+                  color: Colors.white,
+                ),
                 label: const Text(
                   'Use This Path',
                   style: TextStyle(
@@ -361,10 +372,7 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
       children: [
         Icon(icon, size: 16, color: AppColors.primaryBlue),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 12),
-        ),
+        Text(text, style: const TextStyle(fontSize: 12)),
       ],
     );
   }

@@ -11,6 +11,7 @@ class PermissionService {
   /// Request location permission with custom dialog
   Future<bool> requestLocationPermission(BuildContext context) async {
     final status = await Permission.location.status;
+    if (!context.mounted) return false;
 
     if (status.isGranted) return true;
 
@@ -31,12 +32,14 @@ class PermissionService {
     }
 
     if (status.isPermanentlyDenied) {
-      await _showSettingsDialog(
-        context,
-        title: 'Location Permission Denied',
-        message:
-            'Please enable location permission in app settings to use navigation and nearby ghat features.',
-      );
+      if (context.mounted) {
+        await _showSettingsDialog(
+          context,
+          title: 'Location Permission Denied',
+          message:
+              'Please enable location permission in app settings to use navigation and nearby ghat features.',
+        );
+      }
     }
 
     return false;
@@ -45,6 +48,7 @@ class PermissionService {
   /// Request camera permission
   Future<bool> requestCameraPermission(BuildContext context) async {
     final status = await Permission.camera.status;
+    if (!context.mounted) return false;
 
     if (status.isGranted) return true;
 
@@ -65,11 +69,13 @@ class PermissionService {
     }
 
     if (status.isPermanentlyDenied) {
-      await _showSettingsDialog(
-        context,
-        title: 'Camera Permission Denied',
-        message: 'Please enable camera permission in app settings.',
-      );
+      if (context.mounted) {
+        await _showSettingsDialog(
+          context,
+          title: 'Camera Permission Denied',
+          message: 'Please enable camera permission in app settings.',
+        );
+      }
     }
 
     return false;
@@ -78,6 +84,7 @@ class PermissionService {
   /// Request notification permission
   Future<bool> requestNotificationPermission(BuildContext context) async {
     final status = await Permission.notification.status;
+    if (!context.mounted) return false;
 
     if (status.isGranted) return true;
 
@@ -98,11 +105,13 @@ class PermissionService {
     }
 
     if (status.isPermanentlyDenied) {
-      await _showSettingsDialog(
-        context,
-        title: 'Notification Permission Denied',
-        message: 'Please enable notifications in app settings.',
-      );
+      if (context.mounted) {
+        await _showSettingsDialog(
+          context,
+          title: 'Notification Permission Denied',
+          message: 'Please enable notifications in app settings.',
+        );
+      }
     }
 
     return false;
@@ -111,6 +120,7 @@ class PermissionService {
   /// Request storage/photos permission
   Future<bool> requestStoragePermission(BuildContext context) async {
     final status = await Permission.photos.status;
+    if (!context.mounted) return false;
 
     if (status.isGranted) return true;
 
@@ -131,11 +141,13 @@ class PermissionService {
     }
 
     if (status.isPermanentlyDenied) {
-      await _showSettingsDialog(
-        context,
-        title: 'Photo Permission Denied',
-        message: 'Please enable photo access in app settings.',
-      );
+      if (context.mounted) {
+        await _showSettingsDialog(
+          context,
+          title: 'Photo Permission Denied',
+          message: 'Please enable photo access in app settings.',
+        );
+      }
     }
 
     return false;
@@ -144,6 +156,7 @@ class PermissionService {
   /// Request microphone permission (for voice assistant)
   Future<bool> requestMicrophonePermission(BuildContext context) async {
     final status = await Permission.microphone.status;
+    if (!context.mounted) return false;
 
     if (status.isGranted) return true;
 
@@ -164,11 +177,13 @@ class PermissionService {
     }
 
     if (status.isPermanentlyDenied) {
-      await _showSettingsDialog(
-        context,
-        title: 'Microphone Permission Denied',
-        message: 'Please enable microphone permission in app settings.',
-      );
+      if (context.mounted) {
+        await _showSettingsDialog(
+          context,
+          title: 'Microphone Permission Denied',
+          message: 'Please enable microphone permission in app settings.',
+        );
+      }
     }
 
     return false;
@@ -219,12 +234,7 @@ class PermissionService {
           children: [
             Icon(Icons.settings, color: AppColors.emergency),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 18),
-              ),
-            ),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 18))),
           ],
         ),
         content: Text(message),
@@ -292,11 +302,7 @@ class _PermissionDialog extends StatelessWidget {
                   width: 2,
                 ),
               ),
-              child: Icon(
-                icon,
-                size: 40,
-                color: iconColor,
-              ),
+              child: Icon(icon, size: 40, color: iconColor),
             ),
 
             const SizedBox(height: 24),
@@ -307,8 +313,9 @@ class _PermissionDialog extends StatelessWidget {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color:
-                    isDark ? AppColors.textDarkDark : AppColors.textDarkLight,
+                color: isDark
+                    ? AppColors.textDarkDark
+                    : AppColors.textDarkLight,
               ),
               textAlign: TextAlign.center,
             ),
@@ -321,8 +328,9 @@ class _PermissionDialog extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 height: 1.5,
-                color:
-                    isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                color: isDark
+                    ? AppColors.textMutedDark
+                    : AppColors.textMutedLight,
               ),
               textAlign: TextAlign.center,
             ),

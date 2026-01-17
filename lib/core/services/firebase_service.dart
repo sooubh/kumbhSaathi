@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../firebase_options.dart';
 
 /// Firebase service for database operations
@@ -18,8 +19,10 @@ class FirebaseService {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    // Initialize Google Sign In (Required for v7.0.0+)
-    await googleSignIn.initialize();
+    // Initialize Google Sign In only on mobile (Required for v7.0.0+)
+    if (!kIsWeb) {
+      await googleSignIn.initialize();
+    }
 
     // Enable offline persistence for Firestore
     firestore.settings = const Settings(
@@ -42,20 +45,27 @@ class FirebaseService {
   /// Sign in with Google
   static Future<UserCredential?> signInWithGoogle() async {
     try {
-      // Trigger the authentication flow
-      // authenticate() is the standard method in v7.0.0+
-      final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
+      if (kIsWeb) {
+        // Web-specific: Use Firebase Auth popup/redirect
+        final GoogleAuthProvider provider = GoogleAuthProvider();
+        // Using popup for better UX (alternatively use signInWithRedirect)
+        return await auth.signInWithPopup(provider);
+      } else {
+        // Mobile: Use google_sign_in package
+        final GoogleSignInAccount googleUser = await googleSignIn
+            .authenticate();
 
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+        // Obtain the auth details from the request
+        final GoogleSignInAuthentication googleAuth = googleUser.authentication;
 
-      // Create a new credential
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-      );
+        // Create a new credential
+        final OAuthCredential credential = GoogleAuthProvider.credential(
+          idToken: googleAuth.idToken,
+        );
 
-      // Sign in to Firebase with the OAuth credential
-      return await auth.signInWithCredential(credential);
+        // Sign in to Firebase with the OAuth credential
+        return await auth.signInWithCredential(credential);
+      }
     } catch (e) {
       rethrow;
     }

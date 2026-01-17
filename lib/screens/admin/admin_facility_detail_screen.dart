@@ -134,7 +134,7 @@ class _AdminFacilityDetailScreenState
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: AppColors.primaryBlue.withOpacity(0.1),
+                    color: AppColors.primaryBlue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(

@@ -1,9 +1,11 @@
 import 'gemini_live_service.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:logger/logger.dart';
 
 /// Service that orchestrates Gemini Native Audio (Live API)
 class VoiceAIService {
   final GeminiLiveService _liveService;
+  final _logger = Logger();
 
   bool _isInitialized = false;
 
@@ -20,7 +22,7 @@ class VoiceAIService {
       _isInitialized = true;
       return true;
     } catch (e) {
-      print('❌ VoiceAIService Init Failed: $e');
+      _logger.e('❌ VoiceAIService Init Failed: $e');
       return false;
     }
   }

@@ -119,7 +119,7 @@ class CustomMapMarker {
       'title': title,
       'subtitle': subtitle,
       'iconCodePoint': icon.codePoint,
-      'colorValue': color.value,
+      'colorValue': color.toARGB32(),
       'metadata': metadata,
       'isPulsing': isPulsing,
     };
@@ -132,16 +132,10 @@ class CustomMapMarker {
         (e) => e.name == json['type'],
         orElse: () => MapMarkerType.poi,
       ),
-      position: LatLng(
-        json['latitude'] as double,
-        json['longitude'] as double,
-      ),
+      position: LatLng(json['latitude'] as double, json['longitude'] as double),
       title: json['title'] as String,
       subtitle: json['subtitle'] as String?,
-      icon: IconData(
-        json['iconCodePoint'] as int,
-        fontFamily: 'MaterialIcons',
-      ),
+      icon: IconData(json['iconCodePoint'] as int, fontFamily: 'MaterialIcons'),
       color: Color(json['colorValue'] as int),
       metadata: json['metadata'] as Map<String, dynamic>?,
       isPulsing: json['isPulsing'] as bool? ?? false,

@@ -2,12 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/ghat.dart';
 import '../../core/services/firebase_service.dart';
 import '../../core/services/notification_service.dart';
+import 'package:logger/logger.dart';
 
 /// Repository for ghats data
 class GhatRepository {
   final CollectionReference<Map<String, dynamic>> _collection = FirebaseService
       .firestore
       .collection(FirestoreCollections.ghats);
+  final _logger = Logger();
 
   /// Get all ghats
   Stream<List<Ghat>> getGhatsStream() {
@@ -64,7 +66,7 @@ class GhatRepository {
           customMessage: customMessage,
         );
       } catch (e) {
-        print('Error sending crowd notification: $e');
+        _logger.e('Error sending crowd notification: $e');
         // Don't fail the update if notification fails
       }
     }

@@ -1,4 +1,5 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:logger/logger.dart';
 import '../config/ai_config.dart';
 import '../../data/models/conversation_message.dart';
 
@@ -7,6 +8,7 @@ class GeminiService {
   GenerativeModel? _model;
   ChatSession? _chat;
   final List<ConversationMessage> _conversationHistory = [];
+  final _logger = Logger();
 
   bool get isInitialized => _model != null;
   bool get isMockMode => AIConfig.useMockMode;
@@ -16,7 +18,7 @@ class GeminiService {
   /// Initialize the Gemini model
   Future<void> initialize({String? systemPrompt}) async {
     if (isMockMode) {
-      print('🤖 GeminiService: Running in MOCK mode (no API key provided)');
+      _logger.i('🤖 GeminiService: Running in MOCK mode (no API key provided)');
       return;
     }
 
@@ -40,9 +42,9 @@ class GeminiService {
       final prompt = systemPrompt ?? AIConfig.getSystemPrompt();
       _chat = _model!.startChat(history: [Content.text(prompt)]);
 
-      print('✅ GeminiService: Initialized successfully');
+      _logger.i('✅ GeminiService: Initialized successfully');
     } catch (e) {
-      print('❌ GeminiService: Failed to initialize - $e');
+      _logger.e('❌ GeminiService: Failed to initialize - $e');
       rethrow;
     }
   }
@@ -70,7 +72,7 @@ class GeminiService {
 
       return aiResponse;
     } catch (e) {
-      print('❌ GeminiService: Error sending message - $e');
+      _logger.e('❌ GeminiService: Error sending message - $e');
       final errorResponse = 'I encountered an error. Please try again.';
       _conversationHistory.add(ConversationMessage.assistant(errorResponse));
       return errorResponse;

@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'package:logger/logger.dart';
 import '../../data/models/ai_intent.dart';
 
 /// Parser for extracting intents and structured data from AI responses
 class IntentParser {
+  final _logger = Logger();
+
   /// Parse AI response text to extract intent
   AIIntent? parseIntent(String responseText) {
     try {
@@ -17,7 +20,7 @@ class IntentParser {
       // If no JSON found, analyze text for intent
       return _analyzeTextForIntent(responseText);
     } catch (e) {
-      print('❌ IntentParser: Failed to parse intent - $e');
+      _logger.e('❌ IntentParser: Failed to parse intent - $e');
       return null;
     }
   }

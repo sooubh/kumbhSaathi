@@ -27,16 +27,15 @@ class GeminiLiveService {
   final StreamController<Uint8List> _recordingDataController =
       StreamController<Uint8List>();
 
+  final StreamController<Uint8List> _playerFoodController =
+      StreamController<Uint8List>();
+
   bool get isConnected => _isConnected;
 
   /// Initialize Audio Streams
   Future<void> initialize() async {
     await _recorder.openRecorder();
     await _player.openPlayer();
-
-    // Set Log Level
-    _player.setLogLevel(Level.warning);
-    _recorder.setLogLevel(Level.warning);
 
     _logger.i('✅ GeminiLiveService: Audio streams init (flutter_sound)');
   }
@@ -64,14 +63,13 @@ class GeminiLiveService {
         },
         onDone: () {
           _logger.w('❌ WebSocket Closed');
-          // _disconnect();
         },
       );
 
       // Send initial setup message
       _sendSetup(systemInstruction);
 
-      // Start Playing Stream
+      // Start Playing Stream with Food stream
       await _player.startPlayerFromStream(
         codec: Codec.pcm16,
         numChannels: 1,
@@ -178,14 +176,12 @@ class GeminiLiveService {
           // 1. Turn Interrupted
           if (content.containsKey('interrupted')) {
             _logger.w('⚡ Interrupted');
-
             _player.stopPlayer();
             _player.startPlayerFromStream(
               codec: Codec.pcm16,
               numChannels: 1,
               sampleRate: 24000,
               bufferSize: 8192,
-              // ignore: unexpected_null_error
               interleaved: false,
             );
             _statusController.add('interrupted');
@@ -216,9 +212,11 @@ class GeminiLiveService {
   }
 
   Future<void> _playAudio(Uint8List audioData) async {
-    // Add to player buffer
-    if (_player.isPlaying) {
+    // Write audio data directly to player
+    try {
       await _player.feedUint8FromStream(audioData);
+    } catch (e) {
+      _logger.e('Error feeding audio: $e');
     }
   }
 
@@ -242,5 +240,6 @@ class GeminiLiveService {
     _player.closePlayer();
     _statusController.close();
     _recordingDataController.close();
+    _playerFoodController.close();
   }
 }

@@ -30,7 +30,7 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
     final locationAsync = ref.read(locationProvider);
     return locationAsync.when(
       loading: () => 'Fetching location...',
-      error: (_, __) => 'Location unavailable',
+      error: (error, stackTrace) => 'Location unavailable',
       data: (pos) => pos != null
           ? 'Lat: ${pos.latitude.toStringAsFixed(4)}, Lng: ${pos.longitude.toStringAsFixed(4)}'
           : 'Near Sangam Gate 4',
@@ -190,7 +190,7 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
             const SizedBox(height: 8),
             locationAsync.when(
               loading: () => const CircularProgressIndicator(),
-              error: (_, __) => Text(
+              error: (error, stackTrace) => Text(
                 'LOCATION UNAVAILABLE',
                 style: TextStyle(
                   fontSize: 20,
@@ -354,7 +354,7 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
                     color: AppColors.warning,
                     isDark: isDark,
                   ),
-                  error: (_, __) => _StatusBadge(
+                  error: (error, stackTrace) => _StatusBadge(
                     icon: Icons.location_off,
                     text: 'GPS: UNAVAILABLE',
                     color: AppColors.emergency,

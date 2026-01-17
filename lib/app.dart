@@ -68,7 +68,6 @@ class KumbhSaathiApp extends ConsumerWidget {
         '/language-selection': (context) => const LanguageSelectionScreen(),
         '/': (context) => const AuthWrapper(),
       },
-      home: const AuthWrapper(),
     );
   }
 }

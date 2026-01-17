@@ -96,29 +96,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 Row(
                   children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.cardDark : Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(
+                    if (widget.showBackButton)
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.cardDark : Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.borderDark
+                                  : const Color(0xFFE5E7EB),
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.arrow_back_ios_new,
+                            size: 20,
                             color: isDark
-                                ? AppColors.borderDark
-                                : const Color(0xFFE5E7EB),
+                                ? AppColors.textDarkDark
+                                : AppColors.textDarkLight,
                           ),
                         ),
-                        child: Icon(
-                          Icons.arrow_back_ios_new,
-                          size: 20,
-                          color: isDark
-                              ? AppColors.textDarkDark
-                              : AppColors.textDarkLight,
-                        ),
                       ),
-                    ),
                     const SizedBox(width: 12),
                     Text(
                       'User Profile',

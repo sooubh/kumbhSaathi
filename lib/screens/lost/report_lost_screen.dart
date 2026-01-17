@@ -392,8 +392,9 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
                                       fit: BoxFit.cover,
                                       width: double.infinity,
                                       height: double.infinity,
-                                      errorBuilder: (_, __, ___) =>
-                                          _buildUploadPlaceholder(isDark),
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              _buildUploadPlaceholder(isDark),
                                     ),
                                   ),
                                   Positioned(

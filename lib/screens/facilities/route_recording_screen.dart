@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/location_tracking_service.dart';
 import '../../core/services/firebase_service.dart';
@@ -22,33 +23,17 @@ class RouteRecordingScreen extends StatefulWidget {
 class _RouteRecordingScreenState extends State<RouteRecordingScreen> {
   final LocationTrackingService _trackingService = LocationTrackingService();
   final FacilityRouteRepository _repository = FacilityRouteRepository();
-  final Completer<GoogleMapController> _controllerCompleter = Completer();
+  final MapController _mapController = MapController();
 
   bool _isRecording = false;
   bool _isSubmitting = false;
   Timer? _updateTimer;
-  Set<Polyline> _polylines = {};
-  Set<Marker> _markers = {};
+  List<LatLng> _polylinePoints = [];
+  LatLng? _currentLocation;
 
   @override
   void initState() {
     super.initState();
-    _initializeMarkers();
-  }
-
-  void _initializeMarkers() {
-    setState(() {
-      _markers = {
-        Marker(
-          markerId: MarkerId(widget.facility.id),
-          position: LatLng(widget.facility.latitude, widget.facility.longitude),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueOrange,
-          ),
-          infoWindow: InfoWindow(title: widget.facility.name),
-        ),
-      };
-    });
   }
 
   Future<void> _startRecording() async {
@@ -89,26 +74,17 @@ class _RouteRecordingScreenState extends State<RouteRecordingScreen> {
     if (points.isEmpty) return;
 
     setState(() {
-      _polylines = {
-        Polyline(
-          polylineId: const PolylineId('route'),
-          points: points.map((p) => LatLng(p.latitude, p.longitude)).toList(),
-          color: AppColors.primaryBlue,
-          width: 5,
-          patterns: [PatternItem.dot, PatternItem.gap(10)],
-        ),
-      };
+      _polylinePoints = points
+          .map((p) => LatLng(p.latitude, p.longitude))
+          .toList();
+      if (points.isNotEmpty) {
+        _currentLocation = LatLng(points.last.latitude, points.last.longitude);
+      }
     });
 
     // Auto-center map on latest position
-    if (points.isNotEmpty) {
-      _controllerCompleter.future.then((controller) {
-        controller.animateCamera(
-          CameraUpdate.newLatLng(
-            LatLng(points.last.latitude, points.last.longitude),
-          ),
-        );
-      });
+    if (_currentLocation != null) {
+      _mapController.move(_currentLocation!, 16);
     }
   }
 
@@ -180,12 +156,17 @@ class _RouteRecordingScreenState extends State<RouteRecordingScreen> {
   void dispose() {
     _updateTimer?.cancel();
     _trackingService.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final facilityLocation = LatLng(
+      widget.facility.latitude,
+      widget.facility.longitude,
+    );
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : Colors.white,
@@ -196,22 +177,73 @@ class _RouteRecordingScreenState extends State<RouteRecordingScreen> {
       body: Stack(
         children: [
           // Map
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: LatLng(
-                widget.facility.latitude,
-                widget.facility.longitude,
-              ),
-              zoom: 15,
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: facilityLocation,
+              initialZoom: 15,
+              minZoom: 10,
+              maxZoom: 19,
             ),
-            onMapCreated: (controller) {
-              _controllerCompleter.complete(controller);
-            },
-            markers: _markers,
-            polylines: _polylines,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            zoomControlsEnabled: false,
+            children: [
+              // Tile Layer
+              TileLayer(
+                urlTemplate: isDark
+                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                userAgentPackageName: 'com.kumbhsaathi.app',
+                maxZoom: 19,
+              ),
+
+              // Route polyline
+              if (_polylinePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _polylinePoints,
+                      color: AppColors.primaryBlue,
+                      strokeWidth: 5.0,
+                      pattern: const StrokePattern.dotted(),
+                    ),
+                  ],
+                ),
+
+              // Facility marker
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: facilityLocation,
+                    width: 40,
+                    height: 40,
+                    child: Icon(
+                      Icons.location_on,
+                      color: AppColors.primaryOrange,
+                      size: 40,
+                    ),
+                  ),
+                ],
+              ),
+
+              // Current location marker
+              if (_currentLocation != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _currentLocation!,
+                      width: 30,
+                      height: 30,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
 
           // Stats Card
@@ -279,7 +311,7 @@ class _RouteRecordingScreenState extends State<RouteRecordingScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withOpacity(0.9),
+                  color: AppColors.primaryBlue.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -304,7 +336,7 @@ class _RouteRecordingScreenState extends State<RouteRecordingScreen> {
                     Text(
                       'Walk to ${widget.facility.name} and we\'ll track your path',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 12,
                       ),
                       textAlign: TextAlign.center,

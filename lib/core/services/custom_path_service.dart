@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/custom_walking_path.dart';
-import 'map_service.dart';
 
 /// Service for managing custom walking paths
 class CustomPathService {
@@ -9,14 +8,15 @@ class CustomPathService {
   CustomPathService._internal();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final MapService _mapService = MapService();
 
   static const String _collectionName = 'custom_walking_paths';
 
   /// Save a new custom path
   Future<String> savePath(CustomWalkingPath path) async {
     try {
-      final docRef = await _firestore.collection(_collectionName).add(path.toJson());
+      final docRef = await _firestore
+          .collection(_collectionName)
+          .add(path.toJson());
       return docRef.id;
     } catch (e) {
       throw Exception('Failed to save path: $e');
@@ -95,18 +95,21 @@ class CustomPathService {
         .where('isVerified', isEqualTo: true) // Only verified paths
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return CustomWalkingPath.fromJson(data);
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return CustomWalkingPath.fromJson(data);
+          }).toList();
+        });
   }
 
   /// Get path by ID
   Future<CustomWalkingPath?> getPathById(String pathId) async {
     try {
-      final doc = await _firestore.collection(_collectionName).doc(pathId).get();
+      final doc = await _firestore
+          .collection(_collectionName)
+          .doc(pathId)
+          .get();
 
       if (!doc.exists) return null;
 
@@ -126,10 +129,7 @@ class CustomPathService {
       });
 
       // Record user's vote
-      await _firestore
-          .collection('path_votes')
-          .doc('${pathId}_$userId')
-          .set({
+      await _firestore.collection('path_votes').doc('${pathId}_$userId').set({
         'pathId': pathId,
         'userId': userId,
         'vote': 'up',
@@ -148,10 +148,7 @@ class CustomPathService {
       });
 
       // Record user's vote
-      await _firestore
-          .collection('path_votes')
-          .doc('${pathId}_$userId')
-          .set({
+      await _firestore.collection('path_votes').doc('${pathId}_$userId').set({
         'pathId': pathId,
         'userId': userId,
         'vote': 'down',

@@ -35,8 +35,11 @@ class _PermissionsOnboardingScreenState
   Future<void> _requestAllPermissions() async {
     // Request each permission one by one
     await _permissionService.requestLocationPermission(context);
+    if (!mounted) return;
     await _permissionService.requestNotificationPermission(context);
+    if (!mounted) return;
     await _permissionService.requestCameraPermission(context);
+    if (!mounted) return;
     await _permissionService.requestStoragePermission(context);
 
     // Refresh permission status
@@ -55,8 +58,9 @@ class _PermissionsOnboardingScreenState
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? AppColors.backgroundDark
+          : AppColors.backgroundLight,
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -67,10 +71,7 @@ class _PermissionsOnboardingScreenState
                     const SizedBox(height: 40),
 
                     // Header
-                    Text(
-                      '🕉️',
-                      style: const TextStyle(fontSize: 64),
-                    ),
+                    Text('🕉️', style: const TextStyle(fontSize: 64)),
                     const SizedBox(height: 24),
                     Text(
                       'Welcome to KumbhSaathi',
@@ -253,9 +254,7 @@ class _PermissionsOnboardingScreenState
             decoration: BoxDecoration(
               color: iconColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: iconColor.withValues(alpha: 0.3),
-              ),
+              border: Border.all(color: iconColor.withValues(alpha: 0.3)),
             ),
             child: Icon(icon, color: iconColor, size: 24),
           ),

@@ -110,7 +110,10 @@ class _FacilityStatusCard extends StatelessWidget {
       color: isDark ? AppColors.cardDark : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: statusInfo.color.withOpacity(0.3), width: 2),
+        side: BorderSide(
+          color: statusInfo.color.withValues(alpha: 0.3),
+          width: 2,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -126,7 +129,7 @@ class _FacilityStatusCard extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: statusInfo.color.withOpacity(0.1),
+                    color: statusInfo.color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -192,7 +195,7 @@ class _FacilityStatusCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.emergency.withOpacity(0.1),
+                  color: AppColors.emergency.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
