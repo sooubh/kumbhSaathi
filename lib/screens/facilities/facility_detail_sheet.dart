@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/facility.dart';
 import 'route_recording_screen.dart';
@@ -173,13 +174,49 @@ class FacilityDetailSheet extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        // TODO: Implement navigation
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Navigation feature coming soon!'),
-                          ),
+                      onPressed: () async {
+                        // Open navigation in default maps app
+                        final lat = facility.latitude;
+                        final lng = facility.longitude;
+                        final name = Uri.encodeComponent(facility.name);
+
+                        // Try Google Maps first, fallback to Apple Maps on iOS
+                        final googleMapsUrl = Uri.parse(
+                          'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&destination_place_id=$name',
                         );
+
+                        try {
+                          if (await canLaunchUrl(googleMapsUrl)) {
+                            await launchUrl(
+                              googleMapsUrl,
+                              mode: LaunchMode.externalApplication,
+                            );
+                          } else {
+                            // Fallback to universal geo: URL
+                            final geoUrl = Uri.parse(
+                              'geo:$lat,$lng?q=$lat,$lng($name)',
+                            );
+                            if (await canLaunchUrl(geoUrl)) {
+                              await launchUrl(geoUrl);
+                            } else {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'No navigation app available',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Navigation error: $e')),
+                            );
+                          }
+                        }
                       },
                       icon: const Icon(Icons.navigation),
                       label: const Text('Navigate'),

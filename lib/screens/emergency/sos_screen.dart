@@ -9,6 +9,7 @@ import '../../data/repositories/emergency_repository.dart';
 import '../../providers/location_provider.dart';
 import '../../widgets/common/sos_button.dart';
 import '../../widgets/common/primary_button.dart';
+import '../../core/utils/auth_helper.dart';
 
 /// Emergency SOS Screen
 class SOSScreen extends ConsumerStatefulWidget {
@@ -48,9 +49,10 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
       Position? position = locationAsync.valueOrNull;
 
       // Send SOS alert to Firestore
+      final userName = await AuthHelper.getUserFullName();
       final alertId = await _repository.sendSOSAlert(
         userId: FirebaseService.currentUserId ?? 'anonymous',
-        userName: 'Pilgrim', // TODO: Get from user profile
+        userName: userName,
         latitude: position?.latitude ?? 20.0063,
         longitude: position?.longitude ?? 73.7897,
         locationDescription: _currentLocation,

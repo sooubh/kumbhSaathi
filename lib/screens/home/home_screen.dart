@@ -15,6 +15,7 @@ import '../voice/voice_assistant_screen.dart';
 import '../profile/profile_screen.dart';
 import '../settings/settings_screen.dart';
 import '../facilities/add_facility_screen.dart';
+import '../facilities/facility_detail_sheet.dart';
 import '../../core/services/firebase_service.dart';
 
 /// Home screen / Dashboard
@@ -455,15 +456,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   return FacilityCard(
                     facility: facilities[index],
                     onTap: () {
-                      // TODO: Navigate to map or facility details
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Showing ${facilities[index].name} on map',
-                          ),
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
+                      // Show facility detail sheet with navigation options
+                      FacilityDetailSheet.show(context, facilities[index]);
                     },
                   );
                 },

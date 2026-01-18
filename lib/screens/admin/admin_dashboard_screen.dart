@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import 'admin_ghats_screen.dart';
 import 'admin_facilities_screen.dart';
+import 'admin_users_screen.dart';
+import 'admin_alerts_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -80,12 +82,10 @@ class AdminDashboardScreen extends StatelessWidget {
                   'Users',
                   Icons.group,
                   Colors.purple,
-                  () {
-                    // TODO: Implement User Management
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Coming Soon')),
-                    );
-                  },
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminUsersScreen()),
+                  ),
                 ),
                 _buildMenuCard(
                   context,
@@ -93,12 +93,12 @@ class AdminDashboardScreen extends StatelessWidget {
                   'Alerts',
                   Icons.notifications_active,
                   AppColors.emergency,
-                  () {
-                    // TODO: Implement Alert Management
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Coming Soon')),
-                    );
-                  },
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AdminAlertsScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),

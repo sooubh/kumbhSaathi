@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../core/services/backup_service.dart';
 
 /// User settings model
 class UserSettings {
@@ -149,9 +150,40 @@ class SettingsNotifier extends StateNotifier<UserSettings> {
     _saveSettings();
   }
 
-  Future<void> backupData() async {
-    // TODO: Implement data backup logic
-    await _saveSettings();
+  Future<String> backupData() async {
+    try {
+      // First save current settings
+      await _saveSettings();
+
+      // Create and save comprehensive backup using BackupService
+      final backupService = BackupService();
+      final backupId = await backupService.performBackup();
+
+      return backupId;
+    } catch (e) {
+      throw Exception('Backup failed: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getBackupHistory() async {
+    try {
+      final backupService = BackupService();
+      return await backupService.getBackups();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<void> restoreFromBackup(String backupId) async {
+    try {
+      final backupService = BackupService();
+      await backupService.restoreBackup(backupId);
+
+      // Reload settings after restore
+      await _loadSettings();
+    } catch (e) {
+      throw Exception('Restore failed: $e');
+    }
   }
 }
 

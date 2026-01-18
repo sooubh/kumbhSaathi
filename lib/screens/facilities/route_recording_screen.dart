@@ -9,6 +9,7 @@ import '../../data/models/facility.dart';
 import '../../data/models/facility_route.dart';
 import '../../data/repositories/facility_route_repository.dart';
 import '../../widgets/common/primary_button.dart';
+import '../../core/utils/auth_helper.dart';
 
 /// Screen for recording a walking route to a facility
 class RouteRecordingScreen extends StatefulWidget {
@@ -105,12 +106,14 @@ class _RouteRecordingScreenState extends State<RouteRecordingScreen> {
         throw Exception('Not logged in');
       }
 
+      final userName = await AuthHelper.getUserFullName();
+
       // Create route object
       final route = FacilityRoute(
         id: '',
         facilityId: widget.facility.id,
         userId: userId,
-        userName: 'User', // TODO: Get from user profile
+        userName: userName,
         pathPoints: routeData.points,
         distanceMeters: routeData.distanceMeters,
         durationMinutes: routeData.durationMinutes,

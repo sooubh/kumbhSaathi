@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:logger/logger.dart';
 
 /// Service for managing offline map tile caching
@@ -89,7 +88,7 @@ class OfflineMapService {
   /// Get the tile provider for use in FlutterMap
   /// This enables automatic caching of tiles as they are viewed
   FMTCTileProvider getTileProvider() {
-    return FMTCStore(_storeName).getTileProvider();
+    return FMTCTileProvider(stores: {_storeName: null});
   }
 }
 

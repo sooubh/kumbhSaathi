@@ -53,6 +53,7 @@ dependencies:
   # Utilities
   url_launcher: ^6.3.2
   intl: ^0.20.2
+  package_info_plus: ^8.0.0
 
   # AI & Speech
   google_generative_ai: ^0.4.6

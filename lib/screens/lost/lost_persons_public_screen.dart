@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/firebase_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/lost_person.dart';
@@ -381,8 +382,35 @@ class _LostPersonsPublicScreenState
                   ),
                   if (!isMyReport)
                     ElevatedButton.icon(
-                      onPressed: () {
-                        // TODO: Call phone number
+                      onPressed: () async {
+                        final phoneNumber = person.guardianPhone!;
+                        final uri = Uri.parse('tel:$phoneNumber');
+
+                        try {
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Cannot make phone calls on this device',
+                                  ),
+                                  backgroundColor: AppColors.warning,
+                                ),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error: ${e.toString()}'),
+                                backgroundColor: AppColors.emergency,
+                              ),
+                            );
+                          }
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success,

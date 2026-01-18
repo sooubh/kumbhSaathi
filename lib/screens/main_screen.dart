@@ -5,6 +5,7 @@ import 'home/home_screen.dart';
 import 'navigation/ghat_navigation_screen.dart';
 
 import 'lost/lost_persons_public_screen.dart';
+import 'family/family_group_screen.dart';
 import 'emergency/sos_screen.dart';
 import 'profile/profile_screen.dart';
 
@@ -22,8 +23,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     const HomeScreen(),
     const GhatNavigationScreen(showBackButton: false),
     const LostPersonsPublicScreen(), // Public feed of lost reports
-    const SOSScreen(showBackButton: false), // Need to update SOSScreen
-    const ProfileScreen(showBackButton: false), // Need to update ProfileScreen
+    const FamilyGroupScreen(), // Family tracking groups
+    const SOSScreen(showBackButton: false),
+    const ProfileScreen(showBackButton: false),
   ];
 
   void _onItemTapped(int index) {
@@ -71,6 +73,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 color: AppColors.primaryOrange,
               ),
               label: 'Lost',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.group_outlined),
+              selectedIcon: Icon(Icons.group, color: AppColors.primaryOrange),
+              label: 'Family',
             ),
             NavigationDestination(
               icon: Icon(Icons.emergency_outlined),

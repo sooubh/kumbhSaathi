@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/custom_path_service.dart';
 import '../../data/models/custom_walking_path.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/auth_helper.dart';
 
 /// Screen showing available custom paths between two locations
 class CustomPathsListScreen extends ConsumerStatefulWidget {
@@ -55,7 +56,8 @@ class _CustomPathsListScreenState extends ConsumerState<CustomPathsListScreen> {
   }
 
   Future<void> _upvotePath(String pathId) async {
-    final userId = 'current_user_id'; // TODO: Get from auth
+    final userId = AuthHelper.getUserIdOrDefault();
+
     try {
       await CustomPathService().upvotePath(pathId, userId);
       _loadPaths(); // Reload to get updated votes

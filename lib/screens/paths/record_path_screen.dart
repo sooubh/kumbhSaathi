@@ -6,6 +6,7 @@ import '../../core/services/custom_path_service.dart';
 import '../../core/services/map_service.dart';
 import '../../data/models/custom_walking_path.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/auth_helper.dart';
 
 /// Screen for recording a custom walking path
 class RecordPathScreen extends ConsumerStatefulWidget {
@@ -31,7 +32,7 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final List<LatLng> _recordedPoints = [];
   final List<String> _selectedTags = [];
-  
+
   bool _isRecording = false;
   double _totalDistance = 0;
   DateTime? _startTime;
@@ -54,7 +55,8 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController.text = '${widget.startLocationName} to ${widget.endLocationName}';
+    _nameController.text =
+        '${widget.startLocationName} to ${widget.endLocationName}';
   }
 
   @override
@@ -113,17 +115,17 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
     }
 
     if (_nameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a path name')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a path name')));
       return;
     }
 
     final duration = DateTime.now().difference(_startTime!).inSeconds;
 
-    // Get current user (you'll need to get this from auth provider)
-    final userId = 'current_user_id'; // TODO: Get from auth
-    final userName = 'Current User'; // TODO: Get from auth
+    // Get current user from Firebase Auth
+    final userId = AuthHelper.getUserIdOrDefault();
+    final userName = await AuthHelper.getUserFullName();
 
     final path = CustomWalkingPath(
       id: '',
@@ -145,18 +147,20 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
 
     try {
       await _pathService.savePath(path);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Path saved! Thank you for contributing!')),
+          const SnackBar(
+            content: Text('Path saved! Thank you for contributing!'),
+          ),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save path: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save path: $e')));
       }
     }
   }
@@ -166,7 +170,9 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? AppColors.backgroundDark
+          : AppColors.backgroundLight,
       appBar: AppBar(
         title: const Text('Record Walking Path'),
         backgroundColor: isDark ? AppColors.backgroundDark : Colors.white,
@@ -242,7 +248,10 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildStat('Distance', '${(_totalDistance).toStringAsFixed(0)}m'),
+                        _buildStat(
+                          'Distance',
+                          '${(_totalDistance).toStringAsFixed(0)}m',
+                        ),
                         _buildStat('Points', _recordedPoints.length.toString()),
                         _buildStat(
                           'Time',
@@ -265,12 +274,16 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
               child: ElevatedButton.icon(
                 onPressed: _isRecording ? _stopRecording : _startRecording,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isRecording ? AppColors.emergency : AppColors.success,
+                  backgroundColor: _isRecording
+                      ? AppColors.emergency
+                      : AppColors.success,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                icon: Icon(_isRecording ? Icons.stop : Icons.fiber_manual_record),
+                icon: Icon(
+                  _isRecording ? Icons.stop : Icons.fiber_manual_record,
+                ),
                 label: Text(
                   _isRecording ? 'Stop Recording' : 'Start Recording',
                   style: const TextStyle(
@@ -304,7 +317,8 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
                 maxLines: 3,
                 decoration: InputDecoration(
                   labelText: 'Description (Optional)',
-                  hintText: 'e.g., Go through the market, turn left at temple...',
+                  hintText:
+                      'e.g., Go through the market, turn left at temple...',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -319,7 +333,9 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? AppColors.textDarkDark : AppColors.textDarkLight,
+                  color: isDark
+                      ? AppColors.textDarkDark
+                      : AppColors.textDarkLight,
                 ),
               ),
               const SizedBox(height: 8),
@@ -388,13 +404,7 @@ class _RecordPathScreenState extends ConsumerState<RecordPathScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
   }
