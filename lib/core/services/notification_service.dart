@@ -3,6 +3,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/material.dart';
+import 'dart:convert';
 
 /// Background message handler (must be top-level function)
 @pragma('vm:entry-point')
@@ -23,6 +25,9 @@ class NotificationService {
 
   String? _fcmToken;
   String? get fcmToken => _fcmToken;
+
+  // Navigator key for deep linking
+  GlobalKey<NavigatorState>? _navigatorKey;
 
   /// Initialize notifications
   Future<void> initialize() async {
@@ -180,13 +185,76 @@ class NotificationService {
     );
   }
 
-  /// Handle notification tap
-  void _onNotificationTap(NotificationResponse response) {
-    // TODO: Navigate to relevant screen based on payload
+  /// Set navigator key for deep linking
+  void setNavigatorKey(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
   }
 
+  /// Handle notification tap (local notifications)
+  void _onNotificationTap(NotificationResponse response) {
+    if (response.payload == null || response.payload!.isEmpty) return;
+
+    try {
+      // Parse the payload string to extract notification data
+      final data = jsonDecode(
+        response.payload!.replaceAll('{', '{').replaceAll('}', '}'),
+      );
+      _navigateBasedOnType(data);
+    } catch (e) {
+      // If parsing fails, try to use it as a simple map string
+      // Fall back to no navigation if we can't parse
+    }
+  }
+
+  /// Handle notification tap (FCM notifications)
   void _handleNotificationTap(RemoteMessage message) {
-    // TODO: Navigate based on message data
+    _navigateBasedOnType(message.data);
+  }
+
+  /// Navigate to appropriate screen based on notification type
+  Future<void> _navigateBasedOnType(Map<String, dynamic> data) async {
+    if (_navigatorKey?.currentState == null) return;
+
+    final type = data['type'] as String?;
+    if (type == null) return;
+
+    switch (type) {
+      case 'lost_person':
+        final personId = data['personId'] as String?;
+        if (personId != null) {
+          _navigatorKey!.currentState!.pushNamed(
+            '/lost-person-detail',
+            arguments: {'personId': personId},
+          );
+        }
+        break;
+
+      case 'crowd_update':
+        final ghatName = data['ghatName'] as String?;
+        _navigatorKey!.currentState!.pushNamed(
+          '/ghat-navigation',
+          arguments: {'ghatName': ghatName},
+        );
+        break;
+
+      case 'kumbh_update':
+        final eventId = data['eventId'] as String?;
+        _navigatorKey!.currentState!.pushNamed(
+          '/kumbh-updates',
+          arguments: {'eventId': eventId},
+        );
+        break;
+
+      case 'emergency':
+      case 'sos':
+        _navigatorKey!.currentState!.pushNamed('/sos');
+        break;
+
+      default:
+        // For unknown types, just go to home
+        _navigatorKey!.currentState!.pushNamed('/home');
+        break;
+    }
   }
 
   /// Subscribe to topic (for Kumbh Mela updates)

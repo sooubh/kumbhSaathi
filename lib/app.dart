@@ -7,12 +7,14 @@ import 'screens/auth/onboarding_screen.dart';
 import 'screens/auth/profile_creation_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/lost/report_lost_screen.dart';
+import 'screens/lost/lost_person_detail_screen.dart';
 import 'screens/navigation/ghat_navigation_screen.dart';
 import 'screens/emergency/sos_screen.dart';
 import 'screens/voice/voice_assistant_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/main_screen.dart';
+import 'screens/kumbh/kumbh_updates_screen.dart';
 import 'providers/auth_provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
@@ -22,6 +24,10 @@ import 'screens/onboarding/language_selection_screen.dart';
 /// Main App Widget
 class KumbhSaathiApp extends ConsumerWidget {
   const KumbhSaathiApp({super.key});
+
+  // Navigator key for deep linking
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,6 +48,7 @@ class KumbhSaathiApp extends ConsumerWidget {
     );
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
@@ -67,6 +74,22 @@ class KumbhSaathiApp extends ConsumerWidget {
         '/settings': (context) => const SettingsScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),
         '/': (context) => const AuthWrapper(),
+      },
+      onGenerateRoute: (settings) {
+        // Handle routes with arguments
+        if (settings.name == '/lost-person-detail') {
+          final args = settings.arguments as Map<String, dynamic>?;
+          return MaterialPageRoute(
+            builder: (context) =>
+                LostPersonDetailScreen(personId: args?['personId'] as String),
+          );
+        }
+        if (settings.name == '/kumbh-updates') {
+          return MaterialPageRoute(
+            builder: (context) => const KumbhUpdatesScreen(),
+          );
+        }
+        return null;
       },
     );
   }

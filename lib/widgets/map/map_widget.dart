@@ -6,6 +6,7 @@ import '../../data/models/map_marker_model.dart';
 import '../../data/models/route_model.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/config/panchavati_config.dart';
+import '../../core/services/offline_map_service.dart';
 import 'custom_marker_widget.dart';
 
 /// Reusable map widget with OpenStreetMap tiles
@@ -78,13 +79,14 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
         ),
       ),
       children: [
-        // Satellite or OpenStreetMap tile layer
+        // Satellite or OpenStreetMap tile layer with offline support
         if (widget.showSatellite)
           TileLayer(
             urlTemplate:
                 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             userAgentPackageName: 'com.kumbhsaathi.app',
             maxZoom: 19,
+            tileProvider: OfflineMapService().getTileProvider(),
           )
         else
           TileLayer(
@@ -94,6 +96,7 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
             subdomains: isDark ? const ['a', 'b', 'c'] : const ['a', 'b', 'c'],
             userAgentPackageName: 'com.kumbhsaathi.app',
             maxZoom: 19,
+            tileProvider: OfflineMapService().getTileProvider(),
           ),
 
         // Panchavati Area Highlight
