@@ -135,7 +135,7 @@ class _AdminAlertsScreenState extends State<AdminAlertsScreen> {
               Switch(
                 value: alert.isActive,
                 onChanged: (value) => _toggleAlert(alert.id, value),
-                activeColor: AppColors.success,
+                activeThumbColor: AppColors.success,
               ),
             ],
           ),
@@ -230,7 +230,7 @@ class _AdminAlertsScreenState extends State<AdminAlertsScreen> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: selectedSeverity,
+                  initialValue: selectedSeverity,
                   items: const [
                     DropdownMenuItem(value: 'info', child: Text('Info')),
                     DropdownMenuItem(value: 'warning', child: Text('Warning')),

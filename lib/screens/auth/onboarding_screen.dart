@@ -44,10 +44,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       if (mounted) {
         final authState = ref.read(authProvider);
         if (authState.error != null) {
+          // Show user-friendly error messages
+          String errorMessage = 'Sign in failed';
+
+          if (authState.error!.contains('network') ||
+              authState.error!.contains('connection')) {
+            errorMessage =
+                'Network error. Please check your internet connection.';
+          } else if (authState.error!.contains('Developer Error') ||
+              authState.error!.contains('API_NOT_CONNECTED')) {
+            errorMessage = 'Configuration error. Please contact support.';
+          } else if (!authState.error!.contains('cancelled') &&
+              !authState.error!.contains('canceled')) {
+            // Only show error if it's not a cancellation
+            errorMessage = authState.error!;
+          } else {
+            // User cancelled - don't show error
+            return;
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Sign in failed: ${authState.error}'),
+              content: Text(errorMessage),
               backgroundColor: AppColors.emergency,
+              duration: const Duration(seconds: 4),
             ),
           );
         }

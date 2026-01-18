@@ -73,6 +73,7 @@ dev_dependencies:
   hive_generator: ^2.0.1
   build_runner: ^2.4.13
   envied_generator: ^1.1.1
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   generate: true
@@ -81,3 +82,12 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/app_icon.png"

@@ -51,12 +51,24 @@ class FirebaseService {
         // Using popup for better UX (alternatively use signInWithRedirect)
         return await auth.signInWithPopup(provider);
       } else {
-        // Mobile: Use google_sign_in package
-        final GoogleSignInAccount googleUser = await googleSignIn
+        // Mobile: Use google_sign_in package v7.x authenticate() method
+        final GoogleSignInAccount? googleUser = await googleSignIn
             .authenticate();
+
+        // User cancelled the sign-in flow
+        if (googleUser == null) {
+          return null;
+        }
 
         // Obtain the auth details from the request
         final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+
+        // Check if we have the required credentials
+        if (googleAuth.idToken == null) {
+          throw Exception(
+            'Failed to get authentication credentials from Google',
+          );
+        }
 
         // Create a new credential
         final OAuthCredential credential = GoogleAuthProvider.credential(
@@ -66,8 +78,20 @@ class FirebaseService {
         // Sign in to Firebase with the OAuth credential
         return await auth.signInWithCredential(credential);
       }
+    } on FirebaseAuthException catch (e) {
+      // Firebase-specific authentication errors
+      throw Exception('Authentication failed: ${e.message ?? e.code}');
     } catch (e) {
-      rethrow;
+      // Handle user cancellation and other errors
+      // PlatformException with code 'sign_in_canceled' or 'sign_in_failed'
+      if (e.toString().contains('sign_in_canceled') ||
+          e.toString().contains('SIGN_IN_CANCELLED') ||
+          e.toString().contains('canceled')) {
+        // User cancelled - return null gracefully
+        return null;
+      }
+      // Other errors (network, developer config issues, etc.)
+      throw Exception('Sign in failed: ${e.toString()}');
     }
   }
 
