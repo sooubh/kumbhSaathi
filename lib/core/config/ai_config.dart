@@ -3,8 +3,7 @@ import 'env.dart';
 /// AI Configuration for Gemini Integration
 class AIConfig {
   // Model configuration
-  static const String modelName =
-      'gemini-2.5-flash-native-audio-preview-12-2025';
+  static const String modelName = 'models/gemini-2.0-flash-exp';
 
   static String get apiKey {
     return Env.geminiApiKey;
