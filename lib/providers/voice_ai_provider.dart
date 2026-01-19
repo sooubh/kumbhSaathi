@@ -16,6 +16,7 @@ class VoiceAIState {
   final List<ConversationMessage> messages;
   final AIIntent? currentIntent;
   final String? error;
+  final String? detailedStatus;
   final bool isMockMode;
 
   const VoiceAIState({
@@ -26,6 +27,7 @@ class VoiceAIState {
     this.messages = const [],
     this.currentIntent,
     this.error,
+    this.detailedStatus,
     this.isMockMode = false,
   });
 
@@ -39,6 +41,7 @@ class VoiceAIState {
     bool clearIntent = false,
     String? error,
     bool clearError = false,
+    String? detailedStatus,
     bool? isMockMode,
   }) {
     return VoiceAIState(
@@ -49,6 +52,7 @@ class VoiceAIState {
       messages: messages ?? this.messages,
       currentIntent: clearIntent ? null : (currentIntent ?? this.currentIntent),
       error: clearError ? null : (error ?? this.error),
+      detailedStatus: detailedStatus ?? this.detailedStatus,
       isMockMode: isMockMode ?? this.isMockMode,
     );
   }
@@ -97,7 +101,12 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
               isListening: false,
               isSpeaking: false,
               isProcessing: false,
+              detailedStatus: 'Disconnected',
             );
+            break;
+          default:
+            // Handle granular status updates
+            state = state.copyWith(detailedStatus: status);
             break;
         }
       });

@@ -23,6 +23,11 @@ class _VoiceAssistantScreenState extends ConsumerState<VoiceAssistantScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    // Auto-connect and greet on entry (Fix: Auto-Greeting)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(voiceAIProvider.notifier).startSession();
+    });
   }
 
   @override
@@ -220,6 +225,19 @@ class _VoiceAssistantScreenState extends ConsumerState<VoiceAssistantScreen>
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
                 color: isDark ? Colors.white38 : Colors.black38,
+              ),
+            ),
+          ],
+          if (aiState.detailedStatus != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '[${aiState.detailedStatus}]',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white30 : Colors.black26,
               ),
             ),
           ],

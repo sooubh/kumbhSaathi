@@ -31,7 +31,8 @@ class VoiceAIService {
     if (!_isInitialized) await initialize();
 
     await _service.connect(systemPrompt);
-    await _service.startRecording();
+    // Don't auto-start recording. Let the greeting play first.
+    // User can tap mic to reply.
   }
 
   /// End voice session

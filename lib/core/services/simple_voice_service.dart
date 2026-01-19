@@ -35,6 +35,7 @@ class SimpleVoiceService {
 
       final url = AIConfig.wsUrl;
       _logger.d('🔌 Connecting to Gemini Live API');
+      _statusController.add('connecting_socket');
 
       _socket = WebSocketChannel.connect(Uri.parse(url));
 
@@ -45,6 +46,7 @@ class SimpleVoiceService {
 
       _isConnected = true;
       _statusController.add('connected');
+      _statusController.add('socket_connected');
       _logger.i('✅ Connected to Gemini Live API');
 
       // Listen to responses
@@ -71,6 +73,7 @@ class SimpleVoiceService {
 
   /// Send setup configuration
   void _sendSetup(String systemPrompt) {
+    _statusController.add('sending_setup');
     final setupMsg = {
       "setup": {
         "model": AIConfig.modelName,
@@ -87,6 +90,7 @@ class SimpleVoiceService {
     };
 
     _socket?.sink.add(jsonEncode(setupMsg));
+    _statusController.add('setup_sent');
     _logger.d('📤 Setup sent');
   }
 
@@ -94,6 +98,7 @@ class SimpleVoiceService {
   void sendGreeting(String userName) {
     if (!_isConnected) return;
 
+    _statusController.add('sending_greeting');
     final greetingMsg = {
       "client_content": {
         "turns": [
@@ -112,6 +117,7 @@ class SimpleVoiceService {
     };
 
     _socket?.sink.add(jsonEncode(greetingMsg));
+    _statusController.add('greeting_sent');
     _logger.d('📤 Greeting sent');
   }
 
@@ -127,6 +133,7 @@ class SimpleVoiceService {
 
       _isRecording = true;
       _statusController.add('listening');
+      _statusController.add('starting_mic');
       _logger.i('🎙️ Started recording');
 
       // Start streaming
@@ -157,6 +164,8 @@ class SimpleVoiceService {
 
           // ~1 second of silence (approx 15-20 frames depending on chunk size)
           if (silentFrames > 15) {
+            _statusController.add('silence_detected');
+            _statusController.add('auto_stopping');
             stopRecording(); // 🔥 Auto-stop and send turn_complete
             _logger.d('🤫 Silence detected, auto-stopping');
             return;
@@ -266,6 +275,7 @@ class SimpleVoiceService {
       // Play using BytesSource
       await _player.play(BytesSource(audioBytes));
 
+      _statusController.add('playing_audio');
       _logger.d('🔊 Playing audio');
     } catch (e) {
       _logger.e('Failed to play audio: $e');
