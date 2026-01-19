@@ -5,6 +5,7 @@ import '../../core/services/firebase_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/lost_person.dart';
 import '../../data/repositories/lost_person_repository.dart';
+import '../../widgets/common/chatbot_button.dart';
 
 /// Public screen showing all lost person reports to all users
 /// Public screen showing all lost person reports to all users
@@ -65,9 +66,18 @@ class _LostPersonsPublicScreenState
           ),
         ],
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildAllAlertsList(isDark), _buildMyReportsList(isDark)],
+      body: Stack(
+        children: [
+          TabBarView(
+            controller: _tabController,
+            children: [
+              _buildAllAlertsList(isDark),
+              _buildMyReportsList(isDark),
+            ],
+          ),
+          // Chatbot Button (bottom-left to avoid FAB)
+          const Positioned(left: 16, bottom: 16, child: ChatbotButton()),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {

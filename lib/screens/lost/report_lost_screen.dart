@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/firebase_service.dart';
 import '../../data/models/lost_person.dart';
@@ -192,21 +193,62 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
     }
 
     try {
+      print('📸 [UPLOAD] Starting photo upload for report: $reportId');
+      print('📸 [UPLOAD] Image path: ${_selectedImage!.path}');
+
       final storageRef = FirebaseService.storage.ref();
       final photoRef = storageRef.child(
         'lost_persons/$reportId/${DateTime.now().millisecondsSinceEpoch}.jpg',
       );
 
+      final file = File(_selectedImage!.path);
+      final fileSize = await file.length();
+      print(
+        '📸 [UPLOAD] File size: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+      );
+
       // Upload file
-      final uploadTask = photoRef.putFile(File(_selectedImage!.path));
+      print('📸 [UPLOAD] Starting upload task...');
+      final uploadTask = photoRef.putFile(file);
+
+      // Monitor progress
+      uploadTask.snapshotEvents.listen((snapshot) {
+        final progress =
+            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        print('📸 [UPLOAD] Progress: ${progress.toStringAsFixed(1)}%');
+      });
 
       // Wait for upload to complete
       await uploadTask;
+      print('✅ [UPLOAD] Upload completed successfully');
 
       // Get download URL
       final downloadUrl = await photoRef.getDownloadURL();
+      print('✅ [UPLOAD] Download URL: $downloadUrl');
+
       return downloadUrl;
+    } on FirebaseException catch (e) {
+      print('❌ [UPLOAD] Firebase error code: ${e.code}');
+      print('❌ [UPLOAD] Firebase error message: ${e.message}');
+      print('❌ [UPLOAD] Full error: ${e.toString()}');
+
+      // Provide user-friendly error messages
+      String userMessage = 'Failed to upload photo';
+      if (e.code == 'storage/unauthorized') {
+        userMessage = 'Permission denied. Please check Firebase Storage rules.';
+      } else if (e.code == 'storage/canceled') {
+        userMessage = 'Upload was canceled.';
+      } else if (e.code == 'storage/quota-exceeded') {
+        userMessage = 'Storage quota exceeded.';
+      } else if (e.code == 'storage/unauthenticated') {
+        userMessage = 'Authentication required to upload photos.';
+      } else if (e.message != null) {
+        userMessage = e.message!;
+      }
+
+      throw Exception(userMessage);
     } catch (e) {
+      print('❌ [UPLOAD] Unexpected error: ${e.toString()}');
       throw Exception('Failed to upload photo: $e');
     }
   }

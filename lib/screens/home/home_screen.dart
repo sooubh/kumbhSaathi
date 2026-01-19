@@ -6,10 +6,12 @@ import '../../data/models/ghat.dart';
 import '../../data/models/facility.dart';
 import '../../data/providers/data_providers.dart';
 import '../../widgets/common/action_card.dart';
+import '../../widgets/common/chatbot_button.dart';
 import '../../widgets/cards/live_status_card.dart';
 import '../../widgets/cards/facility_card.dart';
 import '../lost/report_lost_screen.dart';
 import '../navigation/ghat_navigation_screen.dart';
+import '../lost/lost_persons_public_screen.dart';
 import '../emergency/sos_screen.dart';
 import '../voice/voice_assistant_screen.dart';
 import '../profile/profile_screen.dart';
@@ -38,67 +40,74 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: isDark
           ? AppColors.backgroundDark
           : AppColors.backgroundLight,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // App Bar
-            _buildAppBar(context, isDark),
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    // Live Status Card - now with Firestore data
-                    ghatsAsync.when(
-                      loading: () => _buildLoadingCard(isDark),
-                      error: (e, _) => _buildDefaultStatusCard(context),
-                      data: (ghats) {
-                        if (ghats.isEmpty) {
-                          return _buildDefaultStatusCard(context);
-                        }
-                        // Find the most crowded ghat
-                        final mostCrowdedGhat = ghats.reduce(
-                          (a, b) =>
-                              a.crowdLevel.index > b.crowdLevel.index ? a : b,
-                        );
-                        return LiveStatusCard(
-                          locationName: '${mostCrowdedGhat.name} Live',
-                          crowdLevel: mostCrowdedGhat.crowdLevel,
-                          percentage: _getCrowdPercentage(
-                            mostCrowdedGhat.crowdLevel,
-                          ),
-                          suggestion: _getSuggestion(
-                            mostCrowdedGhat.crowdLevel,
-                          ),
-                          onTap: () => _navigateTo(
-                            context,
-                            const GhatNavigationScreen(),
-                          ),
-                        );
-                      },
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                // App Bar
+                _buildAppBar(context, isDark),
+                // Content
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 8),
+                        // Live Status Card - now with Firestore data
+                        ghatsAsync.when(
+                          loading: () => _buildLoadingCard(isDark),
+                          error: (e, _) => _buildDefaultStatusCard(context),
+                          data: (ghats) {
+                            if (ghats.isEmpty) {
+                              return _buildDefaultStatusCard(context);
+                            }
+                            // Find the most crowded ghat
+                            final mostCrowdedGhat = ghats.reduce(
+                              (a, b) => a.crowdLevel.index > b.crowdLevel.index
+                                  ? a
+                                  : b,
+                            );
+                            return LiveStatusCard(
+                              locationName: '${mostCrowdedGhat.name} Live',
+                              crowdLevel: mostCrowdedGhat.crowdLevel,
+                              percentage: _getCrowdPercentage(
+                                mostCrowdedGhat.crowdLevel,
+                              ),
+                              suggestion: _getSuggestion(
+                                mostCrowdedGhat.crowdLevel,
+                              ),
+                              onTap: () => _navigateTo(
+                                context,
+                                const GhatNavigationScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        // Action Grid
+                        _buildActionGrid(context),
+                        const SizedBox(height: 32),
+                        // Facilities Section
+                        _buildFacilitiesSection(context, isDark),
+                        const SizedBox(height: 24),
+                        // Ask AI Button
+                        _buildAskAIButton(context, isDark),
+                        const SizedBox(height: 16),
+                        // Language Indicator
+                        _buildLanguageIndicator(isDark),
+                        const SizedBox(height: 32),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                    // Action Grid
-                    _buildActionGrid(context),
-                    const SizedBox(height: 32),
-                    // Facilities Section
-                    _buildFacilitiesSection(context, isDark),
-                    const SizedBox(height: 24),
-                    // Ask AI Button
-                    _buildAskAIButton(context, isDark),
-                    const SizedBox(height: 16),
-                    // Language Indicator
-                    _buildLanguageIndicator(isDark),
-                    const SizedBox(height: 32),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          // Chatbot Button
+          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
+        ],
       ),
     );
   }
@@ -239,6 +248,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           icon: Icons.emergency_share,
           isEmergency: true,
           onTap: () => _navigateTo(context, const SOSScreen()),
+        ),
+        ActionCard(
+          title: 'Lost Persons',
+          icon: Icons.person_search,
+          onTap: () => _navigateTo(context, const LostPersonsPublicScreen()),
         ),
         ActionCard(
           title: 'I Am Lost',

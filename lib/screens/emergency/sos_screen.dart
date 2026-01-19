@@ -10,6 +10,7 @@ import '../../providers/location_provider.dart';
 import '../../widgets/common/sos_button.dart';
 import '../../widgets/common/primary_button.dart';
 import '../../core/utils/auth_helper.dart';
+import '../../widgets/common/chatbot_button.dart';
 
 /// Emergency SOS Screen
 class SOSScreen extends ConsumerStatefulWidget {
@@ -184,332 +185,344 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Location Header
-            const SizedBox(height: 8),
-            locationAsync.when(
-              loading: () => const CircularProgressIndicator(),
-              error: (error, stackTrace) => Text(
-                'LOCATION UNAVAILABLE',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.emergency,
-                  letterSpacing: -0.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              data: (position) => Text(
-                position != null
-                    ? 'YOUR LOCATION DETECTED'
-                    : 'NEAR SANGAM AREA',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: isDark
-                      ? AppColors.textDarkDark
-                      : AppColors.textDarkLight,
-                  letterSpacing: -0.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Nearest Help Desk: 250m (2 mins walk)',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.textMutedDark
-                    : AppColors.textMutedLight,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Map Preview
-            Container(
-              width: double.infinity,
-              height: 160,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.cardDark : const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark
-                      ? AppColors.borderDark
-                      : const Color(0xFFE5E7EB),
-                ),
-              ),
-              child: Stack(
-                children: [
-                  // Map placeholder
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryBlue.withValues(
-                                  alpha: 0.3,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            Container(
-                              width: 16,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryBlue,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Your Location',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? AppColors.textMutedDark
-                                : AppColors.textMutedLight,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Navigation button
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.emergency,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.emergency.withValues(alpha: 0.4),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: Transform.rotate(
-                        angle: -0.785, // -45 degrees
-                        child: const Icon(
-                          Icons.navigation,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // SOS Button
-            if (_isLoading)
-              const SizedBox(
-                height: 200,
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else
-              SOSButton(
-                onPressed: _onSOSPressed,
-                onLongPress: _onSOSLongPress,
-                holdDurationSeconds: AppConstants.sosHoldDuration,
-                size: 200,
-              ),
-            const SizedBox(height: 24),
-
-            // Status Indicators
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               children: [
-                _StatusBadge(
-                  icon: Icons.signal_cellular_4_bar,
-                  text: 'SIGNAL: STRONG',
-                  color: AppColors.success,
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 12),
+                // Location Header
+                const SizedBox(height: 8),
                 locationAsync.when(
-                  loading: () => _StatusBadge(
-                    icon: Icons.location_searching,
-                    text: 'GPS: SEARCHING',
-                    color: AppColors.warning,
-                    isDark: isDark,
-                  ),
-                  error: (error, stackTrace) => _StatusBadge(
-                    icon: Icons.location_off,
-                    text: 'GPS: UNAVAILABLE',
-                    color: AppColors.emergency,
-                    isDark: isDark,
-                  ),
-                  data: (pos) => _StatusBadge(
-                    icon: Icons.location_on,
-                    text: pos != null ? 'GPS: ACCURATE' : 'GPS: APPROXIMATE',
-                    color: pos != null
-                        ? AppColors.primaryBlue
-                        : AppColors.warning,
-                    isDark: isDark,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Nearby Help Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.cardDark : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark
-                      ? AppColors.borderDark
-                      : const Color(0xFFE5E7EB),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.emergency.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.local_police,
+                  loading: () => const CircularProgressIndicator(),
+                  error: (error, stackTrace) => Text(
+                    'LOCATION UNAVAILABLE',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
                       color: AppColors.emergency,
-                      size: 24,
+                      letterSpacing: -0.5,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Police Station Sector 5',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: isDark
-                                ? AppColors.textDarkDark
-                                : AppColors.textDarkLight,
-                          ),
-                        ),
-                        Text(
-                          'Head North-East along the main path',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? AppColors.textMutedDark
-                                : AppColors.textMutedLight,
-                          ),
-                        ),
-                      ],
+                  data: (position) => Text(
+                    position != null
+                        ? 'YOUR LOCATION DETECTED'
+                        : 'NEAR SANGAM AREA',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: isDark
+                          ? AppColors.textDarkDark
+                          : AppColors.textDarkLight,
+                      letterSpacing: -0.5,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                  Icon(
-                    Icons.chevron_right,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Nearest Help Desk: 250m (2 mins walk)',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                     color: isDark
                         ? AppColors.textMutedDark
                         : AppColors.textMutedLight,
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 24),
 
-            // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: PrimaryButton(
-                    text: 'Share Location',
-                    icon: Icons.share_location,
-                    onPressed: _shareLocation,
-                    backgroundColor: AppColors.primaryBlue,
-                    height: 56,
+                // Map Preview
+                Container(
+                  width: double.infinity,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.cardDark
+                        : const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark
+                          ? AppColors.borderDark
+                          : const Color(0xFFE5E7EB),
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Map placeholder
+                      Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryBlue.withValues(
+                                      alpha: 0.3,
+                                    ),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryBlue,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Your Location',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.textMutedDark
+                                    : AppColors.textMutedLight,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Navigation button
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: AppColors.emergency,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.emergency.withValues(
+                                  alpha: 0.4,
+                                ),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                          child: Transform.rotate(
+                            angle: -0.785, // -45 degrees
+                            child: const Icon(
+                              Icons.navigation,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: PrimaryButton(
-                    text: 'Call Mela HQ',
-                    icon: Icons.call,
-                    onPressed: _callMelaHQ,
-                    backgroundColor: const Color(0xFF1A1A1A),
-                    height: 56,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+                const SizedBox(height: 32),
 
-            // Confirmation Message
-            if (_locationShared)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFC8E6C9)),
-                ),
-                child: Row(
+                // SOS Button
+                if (_isLoading)
+                  const SizedBox(
+                    height: 200,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else
+                  SOSButton(
+                    onPressed: _onSOSPressed,
+                    onLongPress: _onSOSLongPress,
+                    holdDurationSeconds: AppConstants.sosHoldDuration,
+                    size: 200,
+                  ),
+                const SizedBox(height: 24),
+
+                // Status Indicators
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.check_circle,
+                    _StatusBadge(
+                      icon: Icons.signal_cellular_4_bar,
+                      text: 'SIGNAL: STRONG',
                       color: AppColors.success,
-                      size: 24,
+                      isDark: isDark,
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'SOS Alert Sent Successfully!',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.green[800],
-                            ),
-                          ),
-                          Text(
-                            'Authorities have been notified. Stay calm.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.green[700],
-                            ),
-                          ),
-                        ],
+                    locationAsync.when(
+                      loading: () => _StatusBadge(
+                        icon: Icons.location_searching,
+                        text: 'GPS: SEARCHING',
+                        color: AppColors.warning,
+                        isDark: isDark,
+                      ),
+                      error: (error, stackTrace) => _StatusBadge(
+                        icon: Icons.location_off,
+                        text: 'GPS: UNAVAILABLE',
+                        color: AppColors.emergency,
+                        isDark: isDark,
+                      ),
+                      data: (pos) => _StatusBadge(
+                        icon: Icons.location_on,
+                        text: pos != null
+                            ? 'GPS: ACCURATE'
+                            : 'GPS: APPROXIMATE',
+                        color: pos != null
+                            ? AppColors.primaryBlue
+                            : AppColors.warning,
+                        isDark: isDark,
                       ),
                     ),
                   ],
                 ),
-              ),
-          ],
-        ),
+                const SizedBox(height: 24),
+
+                // Nearby Help Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.cardDark : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark
+                          ? AppColors.borderDark
+                          : const Color(0xFFE5E7EB),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: AppColors.emergency.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.local_police,
+                          color: AppColors.emergency,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Police Station Sector 5',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: isDark
+                                    ? AppColors.textDarkDark
+                                    : AppColors.textDarkLight,
+                              ),
+                            ),
+                            Text(
+                              'Head North-East along the main path',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.textMutedDark
+                                    : AppColors.textMutedLight,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        color: isDark
+                            ? AppColors.textMutedDark
+                            : AppColors.textMutedLight,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: PrimaryButton(
+                        text: 'Share Location',
+                        icon: Icons.share_location,
+                        onPressed: _shareLocation,
+                        backgroundColor: AppColors.primaryBlue,
+                        height: 56,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: PrimaryButton(
+                        text: 'Call Mela HQ',
+                        icon: Icons.call,
+                        onPressed: _callMelaHQ,
+                        backgroundColor: const Color(0xFF1A1A1A),
+                        height: 56,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Confirmation Message
+                if (_locationShared)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFC8E6C9)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: AppColors.success,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'SOS Alert Sent Successfully!',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.green[800],
+                                ),
+                              ),
+                              Text(
+                                'Authorities have been notified. Stay calm.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Chatbot Button
+          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
+        ],
       ),
     );
   }

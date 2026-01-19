@@ -9,20 +9,30 @@ class StorageService {
   /// Returns the download URL
   Future<String?> uploadImage(XFile imageFile, String userId) async {
     try {
+      print('🔵 [STORAGE] Starting image upload for user: $userId');
+
       final file = File(imageFile.path);
       final int size = await file.length();
+      print('🔵 [STORAGE] File size: ${(size / 1024).toStringAsFixed(2)} KB');
 
       // Basic 5MB check
       if (size > 5 * 1024 * 1024) {
+        print(
+          '❌ [STORAGE] File too large: ${(size / 1024 / 1024).toStringAsFixed(2)} MB',
+        );
         throw Exception('File is too large. Max size is 5MB.');
       }
+
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path = 'user_uploads/$userId/images/$fileName';
+      print('🔵 [STORAGE] Upload path: $path');
 
       final ref = _storage
           .ref()
           .child('user_uploads')
           .child(userId)
           .child('images')
-          .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+          .child(fileName);
 
       // Upload with metadata
       final metadata = SettableMetadata(
@@ -30,11 +40,29 @@ class StorageService {
         customMetadata: {'userId': userId},
       );
 
-      final uploadTask = await ref.putFile(file, metadata);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      print('🔵 [STORAGE] Starting upload task...');
+      final uploadTask = ref.putFile(file, metadata);
+
+      // Monitor upload progress
+      uploadTask.snapshotEvents.listen((snapshot) {
+        final progress =
+            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        print('🔵 [STORAGE] Upload progress: ${progress.toStringAsFixed(1)}%');
+      });
+
+      final taskSnapshot = await uploadTask;
+      print('✅ [STORAGE] Upload completed successfully');
+
+      final downloadUrl = await taskSnapshot.ref.getDownloadURL();
+      print('✅ [STORAGE] Download URL obtained: $downloadUrl');
 
       return downloadUrl;
+    } on FirebaseException catch (e) {
+      print('❌ [STORAGE] Firebase error: ${e.code} - ${e.message}');
+      print('❌ [STORAGE] Error details: ${e.toString()}');
+      throw Exception('Storage upload failed: ${e.message ?? e.code}');
     } catch (e) {
+      print('❌ [STORAGE] Unexpected error: ${e.toString()}');
       throw Exception('Image upload failed: $e');
     }
   }
@@ -42,33 +70,63 @@ class StorageService {
   /// Uploads a voice recording
   Future<String?> uploadAudio(String filePath, String userId) async {
     try {
+      print('🔵 [STORAGE] Starting audio upload for user: $userId');
+
       final file = File(filePath);
       final int size = await file.length();
+      print(
+        '🔵 [STORAGE] Audio file size: ${(size / 1024).toStringAsFixed(2)} KB',
+      );
 
       // Basic 5MB check
       if (size > 5 * 1024 * 1024) {
+        print(
+          '❌ [STORAGE] Audio file too large: ${(size / 1024 / 1024).toStringAsFixed(2)} MB',
+        );
         throw Exception('Audio file is too large. Max size is 5MB.');
       }
+
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final path = 'user_uploads/$userId/audio/$fileName';
+      print('🔵 [STORAGE] Upload path: $path');
 
       final ref = _storage
           .ref()
           .child('user_uploads')
           .child(userId)
           .child('audio')
-          .child(
-            '${DateTime.now().millisecondsSinceEpoch}.m4a',
-          ); // Assuming m4a/aac
+          .child(fileName);
 
       final metadata = SettableMetadata(
         contentType: 'audio/mp4', // Common for mobile recordings
         customMetadata: {'userId': userId},
       );
 
-      final uploadTask = await ref.putFile(file, metadata);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      print('🔵 [STORAGE] Starting audio upload task...');
+      final uploadTask = ref.putFile(file, metadata);
+
+      // Monitor upload progress
+      uploadTask.snapshotEvents.listen((snapshot) {
+        final progress =
+            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        print(
+          '🔵 [STORAGE] Audio upload progress: ${progress.toStringAsFixed(1)}%',
+        );
+      });
+
+      final taskSnapshot = await uploadTask;
+      print('✅ [STORAGE] Audio upload completed successfully');
+
+      final downloadUrl = await taskSnapshot.ref.getDownloadURL();
+      print('✅ [STORAGE] Audio download URL obtained: $downloadUrl');
 
       return downloadUrl;
+    } on FirebaseException catch (e) {
+      print('❌ [STORAGE] Firebase error: ${e.code} - ${e.message}');
+      print('❌ [STORAGE] Error details: ${e.toString()}');
+      throw Exception('Audio upload failed: ${e.message ?? e.code}');
     } catch (e) {
+      print('❌ [STORAGE] Unexpected error: ${e.toString()}');
       throw Exception('Audio upload failed: $e');
     }
   }

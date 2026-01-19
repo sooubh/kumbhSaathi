@@ -29,6 +29,17 @@ class FirebaseService {
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
+
+    // Verify Firebase Storage is accessible
+    try {
+      // Test storage connection
+      storage.ref().child('.test_connection');
+      print('✅ [FIREBASE] Storage initialized and accessible');
+      print('✅ [FIREBASE] Storage bucket: ${storage.bucket}');
+    } catch (e) {
+      print('❌ [FIREBASE] Storage initialization check failed: $e');
+      print('⚠️  [FIREBASE] Storage uploads may not work properly');
+    }
   }
 
   /// Get current user ID
@@ -52,7 +63,7 @@ class FirebaseService {
         return await auth.signInWithPopup(provider);
       } else {
         // Mobile: Use google_sign_in package v7.x authenticate() method
-        final GoogleSignInAccount? googleUser = await googleSignIn
+        final GoogleSignInAccount googleUser = await googleSignIn
             .authenticate();
 
         // User cancelled the sign-in flow

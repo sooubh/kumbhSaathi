@@ -4,65 +4,12 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     // ============================================
-    // LOST PERSON PHOTOS: Public read, Auth upload
-    // ============================================
-    match /lost_persons/{personId}/{fileName} {
-      // Anyone can view lost person photos
-      allow read: if true;
-      // Authenticated users can upload
-      allow write: if request.auth != null
-                   && request.resource.size < 5 * 1024 * 1024  // Max 5MB
-                   && request.resource.contentType.matches('image/.*');
-    }
-    
-    // ============================================
-    // USER PROFILE PHOTOS: Owner only
-    // ============================================
-    match /users/{userId}/{fileName} {
-      // Anyone can view profile photos
-      allow read: if true;
-      // Only owner can upload their profile photo
-      allow write: if request.auth != null 
-                   && request.auth.uid == userId
-                   && request.resource.size < 2 * 1024 * 1024  // Max 2MB
-                   && request.resource.contentType.matches('image/.*');
-    }
-    
-    // ============================================
-    // FACILITY PHOTOS: Auth upload, Admin approve
-    // ============================================
-    match /facilities/{facilityId}/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-    }
-    
-    // ============================================
-    // KUMBH UPDATE IMAGES: Admin only
-    // ============================================
-    match /kumbh_updates/{updateId}/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null
-                   && request.auth.token.email == 'sourabh3527@gmail.com';
-    }
-    
-    // ============================================
-    // VOICE RECORDINGS: SOS/Lost person
-    // ============================================
-    match /voice_recordings/{userId}/{fileName} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.auth.uid == userId
-                   && request.resource.size < 10 * 1024 * 1024  // Max 10MB
-                   && request.resource.contentType.matches('audio/.*');
-    }
-    
-    // ============================================
-    // DEFAULT: Deny all other access
+    // OPEN PERMISSIONS - DEVELOPMENT/TESTING ONLY
+    // WARNING: This allows ALL read/write access!
+    // DO NOT USE IN PRODUCTION!
     // ============================================
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }

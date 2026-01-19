@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/family_group_service.dart';
 import '../../data/models/family_group.dart';
 import 'group_detail_screen.dart';
+import '../../widgets/common/chatbot_button.dart';
 
 /// Screen to manage family tracking groups
 class FamilyGroupScreen extends ConsumerStatefulWidget {
@@ -28,86 +29,96 @@ class _FamilyGroupScreenState extends ConsumerState<FamilyGroupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Family Groups'), elevation: 2),
-      body: StreamBuilder<List<FamilyGroup>>(
-        stream: _service.streamUserGroups(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Stack(
+        children: [
+          StreamBuilder<List<FamilyGroup>>(
+            stream: _service.streamUserGroups(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              if (snapshot.hasError) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 16),
+                      Text('Error: ${snapshot.error}'),
+                    ],
+                  ),
+                );
+              }
+
+              final groups = snapshot.data ?? [];
+
+              return ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  // Groups list
+                  if (groups.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            Icon(Icons.group_off, size: 64, color: Colors.grey),
+                            SizedBox(height: 16),
+                            Text(
+                              'No Family Groups',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Create a group or join one with an invite code',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    ...groups.map((group) => _buildGroupCard(group)),
+
                   const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}'),
-                ],
-              ),
-            );
-          }
 
-          final groups = snapshot.data ?? [];
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Groups list
-              if (groups.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        Icon(Icons.group_off, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          'No Family Groups',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Create a group or join one with an invite code',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
+                  // Create group button
+                  ElevatedButton.icon(
+                    onPressed: _showCreateGroupDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create New Group'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.all(16),
                     ),
                   ),
-                )
-              else
-                ...groups.map((group) => _buildGroupCard(group)),
 
-              const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
-              // Create group button
-              ElevatedButton.icon(
-                onPressed: _showCreateGroupDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Create New Group'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Join group button
-              OutlinedButton.icon(
-                onPressed: _showJoinGroupDialog,
-                icon: const Icon(Icons.login),
-                label: const Text('Join with Code'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
-                ),
-              ),
-            ],
-          );
-        },
+                  // Join group button
+                  OutlinedButton.icon(
+                    onPressed: _showJoinGroupDialog,
+                    icon: const Icon(Icons.login),
+                    label: const Text('Join with Code'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.all(16),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          // Chatbot Button
+          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
+        ],
       ),
     );
   }

@@ -8,6 +8,8 @@ import '../../data/repositories/user_repository.dart';
 import '../../data/repositories/activity_repository.dart';
 import '../../data/models/user_activity.dart';
 import 'package:intl/intl.dart';
+import '../../widgets/common/chatbot_button.dart';
+import '../lost/lost_persons_public_screen.dart';
 
 /// User profile provider
 final userProfileStreamProvider = StreamProvider<UserProfile?>((ref) {
@@ -63,18 +65,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       backgroundColor: isDark
           ? AppColors.backgroundDark
           : const Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: profileAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) =>
-              _buildProfileContent(context, ref, isDark, _sampleProfile),
-          data: (profile) => _buildProfileContent(
-            context,
-            ref,
-            isDark,
-            profile ?? _sampleProfile,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: profileAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) =>
+                  _buildProfileContent(context, ref, isDark, _sampleProfile),
+              data: (profile) => _buildProfileContent(
+                context,
+                ref,
+                isDark,
+                profile ?? _sampleProfile,
+              ),
+            ),
           ),
-        ),
+          // Chatbot Button
+          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
+        ],
       ),
     );
   }
