@@ -1,79 +1,55 @@
-import 'gemini_live_service.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'dart:async';
 import 'package:logger/logger.dart';
+import 'simple_voice_service.dart';
 
-/// Service that orchestrates Gemini Native Audio (Live API)
+/// Wrapper service for voice AI functionality
 class VoiceAIService {
-  final GeminiLiveService _liveService;
+  final SimpleVoiceService _service = SimpleVoiceService();
   final _logger = Logger();
 
   bool _isInitialized = false;
 
   // Expose status stream
-  Stream<String> get statusStream => _liveService.statusStream;
-  bool get isConnected => _liveService.isConnected;
+  Stream<String> get statusStream => _service.statusStream;
+  bool get isConnected => _service.isConnected;
 
-  VoiceAIService() : _liveService = GeminiLiveService();
-
-  /// Initialize
+  /// Initialize the service
   Future<bool> initialize() async {
     try {
-      await _liveService.initialize();
+      // No complex initialization needed anymore
       _isInitialized = true;
+      _logger.i('✅ VoiceAIService initialized');
       return true;
     } catch (e) {
-      _logger.e('❌ VoiceAIService Init Failed: $e');
+      _logger.e('❌ Init failed: $e');
       return false;
     }
   }
 
-  /// Check permissions
-  Future<bool> checkPermissions() async {
-    final status = await Permission.microphone.status;
-    if (status.isGranted) return true;
-
-    final result = await Permission.microphone.request();
-    return result.isGranted;
-  }
-
-  /// Start Live Session
+  /// Start voice session
   Future<void> startSession(String systemPrompt) async {
     if (!_isInitialized) await initialize();
 
-    final hasPerm = await checkPermissions();
-    if (!hasPerm) {
-      throw 'Microphone permission denied';
-    }
-
-    await _liveService.connect(systemPrompt);
-    await _liveService.startStreaming();
+    await _service.connect(systemPrompt);
+    await _service.startRecording();
   }
 
-  /// Stop Session
+  /// End voice session
   Future<void> endSession() async {
-    await _liveService.stopStreaming();
-    _liveService.disconnect(); // Don't dispose, allow reconnection
+    await _service.stopRecording();
+    _service.disconnect();
   }
 
-  /// Toggle Mic Mute (if implementing push-to-talk inside live)
-  Future<void> setMicMuted(bool times) async {
-    if (times) {
-      await _liveService.stopStreaming();
-    } else {
-      await _liveService.startStreaming();
-    }
-  }
-
-  /// Send initial greeting
+  /// Send greeting
   void sendGreeting(String userName) {
-    _liveService.sendInitialGreeting(userName);
+    _service.sendGreeting(userName);
   }
 
+  /// Dispose
   void dispose() {
-    _liveService.dispose();
+    _service.dispose();
   }
 
-  // Legacy/Mock compatibility (if needed for rest of app, otherwise remove)
-  // For now, we will stub or minimal
+  // Legacy compatibility
   bool get isMockMode => false;
 }

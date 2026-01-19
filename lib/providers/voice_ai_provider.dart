@@ -64,6 +64,8 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
 
   VoiceAINotifier(this.ref) : super(const VoiceAIState());
 
+  bool get isConnected => _service.isConnected;
+
   /// Initialize the voice AI service
   Future<void> initialize() async {
     try {
@@ -139,6 +141,9 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
       // Send initial greeting after connection
       final userProfile = ref.read(currentProfileProvider);
       final userName = userProfile?.name ?? 'Friend';
+
+      // Slight delay for natural feel
+      await Future.delayed(const Duration(milliseconds: 300));
       _service.sendGreeting(userName);
 
       // Status update will come from stream ('connected' -> 'listening')
@@ -153,6 +158,8 @@ class VoiceAINotifier extends StateNotifier<VoiceAIState> {
 
   /// Toggle Session (Connect/Disconnect)
   Future<void> toggleSession() async {
+    if (state.isProcessing) return;
+
     if (_service.isConnected) {
       await endSession();
     } else {

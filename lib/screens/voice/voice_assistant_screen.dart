@@ -169,6 +169,7 @@ class _VoiceAssistantScreenState extends ConsumerState<VoiceAssistantScreen>
 
   Widget _buildStatusText(VoiceAIState aiState, bool isDark) {
     String text = 'Tap to Connect';
+    String? hint;
     Color color = isDark ? Colors.white54 : Colors.black54;
 
     if (aiState.isProcessing) {
@@ -179,57 +180,134 @@ class _VoiceAssistantScreenState extends ConsumerState<VoiceAssistantScreen>
       color = AppColors.primaryBlue;
     } else if (aiState.isListening) {
       text = 'Listening...';
+      hint = 'Speak now';
       color = AppColors.emergency;
     } else if (aiState.error != null) {
       text = aiState.error!;
       color = Colors.red;
+
+      // Add helpful hints based on error type
+      if (text.contains('API key')) {
+        hint = 'Check your .env file';
+      } else if (text.contains('timeout') || text.contains('internet')) {
+        hint = 'Check your connection';
+      } else if (text.contains('permission')) {
+        hint = 'Grant microphone access';
+      } else {
+        hint = 'Tap retry button below';
+      }
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w500,
-          color: color,
-        ),
+      child: Column(
+        children: [
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+          ),
+          if (hint != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              hint,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: isDark ? Colors.white38 : Colors.black38,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   Widget _buildBottomControls(bool isConnected) {
+    final aiState = ref.watch(voiceAIProvider);
+    final hasError = aiState.error != null;
+
     return Container(
       padding: const EdgeInsets.only(bottom: 40, top: 20),
-      child: GestureDetector(
-        onTap: _toggleSession,
-        child: Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isConnected ? Colors.red : AppColors.primaryBlue,
-            boxShadow: [
-              BoxShadow(
-                color: (isConnected ? Colors.red : AppColors.primaryBlue)
-                    .withValues(alpha: 0.3),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Main button (Connect/Disconnect)
+          GestureDetector(
+            onTap: _toggleSession,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isConnected ? Colors.red : AppColors.primaryBlue,
+                boxShadow: [
+                  BoxShadow(
+                    color: (isConnected ? Colors.red : AppColors.primaryBlue)
+                        .withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-            ],
+              child: Icon(
+                isConnected ? Icons.call_end : Icons.call,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
           ),
-          child: Icon(
-            isConnected ? Icons.call_end : Icons.call,
-            color: Colors.white,
-            size: 32,
-          ),
-        ),
+
+          // Retry button (only show when there's an error)
+          if (hasError) ...[
+            const SizedBox(width: 20),
+            GestureDetector(
+              onTap: () {
+                ref.read(voiceAIProvider.notifier).clearError();
+                _toggleSession();
+              },
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.orange,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.refresh, color: Colors.white, size: 28),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   void _toggleSession() {
-    ref.read(voiceAIProvider.notifier).toggleSession();
+    final notifier = ref.read(voiceAIProvider.notifier);
+    final state = ref.read(voiceAIProvider);
+
+    if (!state.isInitialized) {
+      notifier.startSession();
+    } else if (state.isListening) {
+      notifier.endSession(); // Manual stop -> triggers turn_complete
+    } else if (!notifier.isConnected) {
+      notifier.startSession(); // Reconnect if disconnected
+    } else {
+      // If speaking or processing, maybe we want to stop?
+      // For now, let's keep it simple: mainly for stopping recording.
+      notifier.toggleSession();
+    }
   }
 }

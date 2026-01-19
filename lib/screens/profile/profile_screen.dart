@@ -9,7 +9,6 @@ import '../../data/repositories/activity_repository.dart';
 import '../../data/models/user_activity.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/common/chatbot_button.dart';
-import '../lost/lost_persons_public_screen.dart';
 
 /// User profile provider
 final userProfileStreamProvider = StreamProvider<UserProfile?>((ref) {

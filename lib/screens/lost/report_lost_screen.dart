@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:logger/logger.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/firebase_service.dart';
 import '../../data/models/lost_person.dart';
@@ -57,6 +58,7 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
 
   final _repository = LostPersonRepository();
   final List<String> _genderOptions = ['Male', 'Female', 'Other'];
+  final _logger = Logger();
 
   @override
   void initState() {
@@ -193,8 +195,8 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
     }
 
     try {
-      print('📸 [UPLOAD] Starting photo upload for report: $reportId');
-      print('📸 [UPLOAD] Image path: ${_selectedImage!.path}');
+      _logger.d('📸 [UPLOAD] Starting photo upload for report: $reportId');
+      _logger.d('📸 [UPLOAD] Image path: ${_selectedImage!.path}');
 
       final storageRef = FirebaseService.storage.ref();
       final photoRef = storageRef.child(
@@ -203,34 +205,34 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
 
       final file = File(_selectedImage!.path);
       final fileSize = await file.length();
-      print(
+      _logger.d(
         '📸 [UPLOAD] File size: ${(fileSize / 1024).toStringAsFixed(2)} KB',
       );
 
       // Upload file
-      print('📸 [UPLOAD] Starting upload task...');
+      _logger.d('📸 [UPLOAD] Starting upload task...');
       final uploadTask = photoRef.putFile(file);
 
       // Monitor progress
       uploadTask.snapshotEvents.listen((snapshot) {
         final progress =
             (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        print('📸 [UPLOAD] Progress: ${progress.toStringAsFixed(1)}%');
+        _logger.d('📸 [UPLOAD] Progress: ${progress.toStringAsFixed(1)}%');
       });
 
       // Wait for upload to complete
       await uploadTask;
-      print('✅ [UPLOAD] Upload completed successfully');
+      _logger.i('✅ [UPLOAD] Upload completed successfully');
 
       // Get download URL
       final downloadUrl = await photoRef.getDownloadURL();
-      print('✅ [UPLOAD] Download URL: $downloadUrl');
+      _logger.d('✅ [UPLOAD] Download URL: $downloadUrl');
 
       return downloadUrl;
     } on FirebaseException catch (e) {
-      print('❌ [UPLOAD] Firebase error code: ${e.code}');
-      print('❌ [UPLOAD] Firebase error message: ${e.message}');
-      print('❌ [UPLOAD] Full error: ${e.toString()}');
+      _logger.e('❌ [UPLOAD] Firebase error code: ${e.code}');
+      _logger.e('❌ [UPLOAD] Firebase error message: ${e.message}');
+      _logger.e('❌ [UPLOAD] Full error: ${e.toString()}');
 
       // Provide user-friendly error messages
       String userMessage = 'Failed to upload photo';
@@ -248,7 +250,7 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
 
       throw Exception(userMessage);
     } catch (e) {
-      print('❌ [UPLOAD] Unexpected error: ${e.toString()}');
+      _logger.e('❌ [UPLOAD] Unexpected error: ${e.toString()}');
       throw Exception('Failed to upload photo: $e');
     }
   }

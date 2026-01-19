@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:logger/logger.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/services/firebase_service.dart';
@@ -37,7 +38,7 @@ void main() async {
     // Initialize offline map service
     await OfflineMapService().initialize();
   } else {
-    print(
+    Logger().i(
       '🌐 [WEB] Skipping mobile-only services (notifications, offline maps, crowd monitoring)',
     );
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../core/theme/app_colors.dart';
 import '../../core/config/panchavati_config.dart';
 import '../../data/models/ghat.dart';
@@ -401,18 +400,6 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
                               });
                             },
                           ),
-                        // Voice search button
-                        IconButton(
-                          icon: Icon(
-                            _isListening ? Icons.mic : Icons.mic_none,
-                            color: _isListening
-                                ? AppColors.primaryBlue
-                                : (isDark
-                                      ? AppColors.textMutedDark
-                                      : AppColors.textMutedLight),
-                          ),
-                          onPressed: _listen,
-                        ),
                       ],
                     ),
                   ),
@@ -715,50 +702,6 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
         );
       }),
     ];
-  }
-
-  final stt.SpeechToText _speech = stt.SpeechToText();
-  bool _isListening = false;
-
-  void _listen() async {
-    if (!_isListening) {
-      bool available = await _speech.initialize(
-        onStatus: (val) {
-          if (!mounted) return;
-          if (val == 'done' || val == 'notListening') {
-            setState(() => _isListening = false);
-          }
-        },
-        onError: (val) {
-          if (!mounted) return;
-          setState(() => _isListening = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Voice error: ${val.errorMsg}')),
-          );
-        },
-      );
-
-      if (!mounted) return;
-
-      if (available) {
-        setState(() => _isListening = true);
-        _speech.listen(
-          onResult: (val) {
-            setState(() {
-              _searchController.text = val.recognizedWords;
-              // Trigger filter update
-            });
-          },
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Voice recognition not available')),
-        );
-      }
-    } else {
-      setState(() => _isListening = false);
-      _speech.stop();
-    }
   }
 
   Widget _buildMapControls(BuildContext context, bool isDark, WidgetRef ref) {

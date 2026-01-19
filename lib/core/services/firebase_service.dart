@@ -4,10 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:logger/logger.dart';
 import '../../firebase_options.dart';
 
 /// Firebase service for database operations
 class FirebaseService {
+  static final _logger = Logger();
+
   static FirebaseFirestore get firestore => FirebaseFirestore.instance;
   static FirebaseAuth get auth => FirebaseAuth.instance;
   static FirebaseStorage get storage => FirebaseStorage.instance;
@@ -31,9 +34,9 @@ class FirebaseService {
         persistenceEnabled: true,
         cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );
-      print('📱 [MOBILE] Firestore persistence enabled');
+      _logger.i('📱 [MOBILE] Firestore persistence enabled');
     } else {
-      print(
+      _logger.i(
         '🌐 [WEB] Firestore using default web settings (IndexedDB persistence)',
       );
     }
@@ -42,11 +45,11 @@ class FirebaseService {
     try {
       // Test storage connection
       storage.ref().child('.test_connection');
-      print('✅ [FIREBASE] Storage initialized and accessible');
-      print('✅ [FIREBASE] Storage bucket: ${storage.bucket}');
+      _logger.i('✅ [FIREBASE] Storage initialized and accessible');
+      _logger.i('✅ [FIREBASE] Storage bucket: ${storage.bucket}');
     } catch (e) {
-      print('❌ [FIREBASE] Storage initialization check failed: $e');
-      print('⚠️  [FIREBASE] Storage uploads may not work properly');
+      _logger.e('❌ [FIREBASE] Storage initialization check failed: $e');
+      _logger.w('⚠️  [FIREBASE] Storage uploads may not work properly');
     }
   }
 
@@ -73,11 +76,6 @@ class FirebaseService {
         // Mobile: Use google_sign_in package v7.x authenticate() method
         final GoogleSignInAccount googleUser = await googleSignIn
             .authenticate();
-
-        // User cancelled the sign-in flow
-        if (googleUser == null) {
-          return null;
-        }
 
         // Obtain the auth details from the request
         final GoogleSignInAuthentication googleAuth = googleUser.authentication;

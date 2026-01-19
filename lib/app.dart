@@ -20,6 +20,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/language_provider.dart';
 import 'screens/onboarding/language_selection_screen.dart';
+import 'widgets/ai/floating_chat_box.dart';
 
 /// Main App Widget
 class KumbhSaathiApp extends ConsumerWidget {
@@ -62,6 +63,16 @@ class KumbhSaathiApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
+      // Add builder to overlay FloatingChatBox on all screens
+      builder: (context, child) {
+        return Stack(
+          children: [
+            if (child != null) child,
+            // Global floating chat box
+            const FloatingChatBox(),
+          ],
+        );
+      },
       routes: {
         '/home': (context) => const HomeScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
