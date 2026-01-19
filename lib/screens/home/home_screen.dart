@@ -13,7 +13,7 @@ import '../lost/report_lost_screen.dart';
 import '../navigation/ghat_navigation_screen.dart';
 import '../lost/lost_persons_public_screen.dart';
 import '../emergency/sos_screen.dart';
-import '../voice/voice_assistant_screen.dart';
+import '../voice/voice_assistant_sheet.dart';
 import '../profile/profile_screen.dart';
 import '../settings/settings_screen.dart';
 import '../facilities/add_facility_screen.dart';
@@ -241,7 +241,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           title: 'Voice Help',
           icon: Icons.mic,
           isPrimary: true,
-          onTap: () => _navigateTo(context, const VoiceAssistantScreen()),
+          onTap: () => _showVoiceAssistant(context),
         ),
         ActionCard(
           title: 'Emergency',
@@ -279,7 +279,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildAskAIButton(BuildContext context, bool isDark) {
     return GestureDetector(
-      onTap: () => _navigateTo(context, const VoiceAssistantScreen()),
+      onTap: () => _showVoiceAssistant(context),
       child: Container(
         width: double.infinity,
         height: 80,
@@ -522,6 +522,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _navigateTo(BuildContext context, Widget screen) {
     Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
+
+  void _showVoiceAssistant(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const VoiceAssistantSheet(),
+    );
   }
 }
 

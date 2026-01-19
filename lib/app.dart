@@ -10,7 +10,7 @@ import 'screens/lost/report_lost_screen.dart';
 import 'screens/lost/lost_person_detail_screen.dart';
 import 'screens/navigation/ghat_navigation_screen.dart';
 import 'screens/emergency/sos_screen.dart';
-import 'screens/voice/voice_assistant_screen.dart';
+
 import 'screens/profile/profile_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/main_screen.dart';
@@ -80,7 +80,7 @@ class KumbhSaathiApp extends ConsumerWidget {
         '/report-lost': (context) => const ReportLostScreen(),
         '/ghat-navigation': (context) => const GhatNavigationScreen(),
         '/sos': (context) => const SOSScreen(),
-        '/voice-assistant': (context) => const VoiceAssistantScreen(),
+
         '/profile': (context) => const ProfileScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/language-selection': (context) => const LanguageSelectionScreen(),

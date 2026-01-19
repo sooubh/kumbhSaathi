@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
-import '../../providers/voice_ai_provider.dart';
-import '../../screens/voice/voice_assistant_screen.dart';
+import '../../providers/voice_session_provider.dart';
+import '../../screens/voice/voice_assistant_sheet.dart';
 
 /// A floating chatbot button that provides quick access to the voice assistant
 /// from any screen in the app.
@@ -34,8 +34,11 @@ class _ChatbotButtonState extends ConsumerState<ChatbotButton>
 
   @override
   Widget build(BuildContext context) {
-    final aiState = ref.watch(voiceAIProvider);
-    final isActive = aiState.isListening || aiState.isSpeaking;
+    final voiceState = ref.watch(voiceSessionProvider);
+    final isActive =
+        voiceState.status == VoiceState.listening ||
+        voiceState.status == VoiceState.speaking ||
+        voiceState.status == VoiceState.processing;
 
     // Adjust pulse animation based on state
     if (isActive) {
@@ -49,9 +52,11 @@ class _ChatbotButtonState extends ConsumerState<ChatbotButton>
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const VoiceAssistantScreen()),
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => const VoiceAssistantSheet(),
         );
       },
       child: AnimatedBuilder(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,7 +87,7 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
                 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             userAgentPackageName: 'com.kumbhsaathi.app',
             maxZoom: 19,
-            tileProvider: OfflineMapService().getTileProvider(),
+            tileProvider: kIsWeb ? null : OfflineMapService().getTileProvider(),
           )
         else
           TileLayer(
@@ -96,7 +97,7 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
             subdomains: isDark ? const ['a', 'b', 'c'] : const ['a', 'b', 'c'],
             userAgentPackageName: 'com.kumbhsaathi.app',
             maxZoom: 19,
-            tileProvider: OfflineMapService().getTileProvider(),
+            tileProvider: kIsWeb ? null : OfflineMapService().getTileProvider(),
           ),
 
         // Panchavati Area Highlight
