@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/realtime_crowd_service.dart';
@@ -20,19 +21,26 @@ void main() async {
   // Initialize Firebase
   await FirebaseService.initialize();
 
-  // 🔴 START AUTOMATIC REALTIME CROWD MONITORING FOR KUMBH MELA
-  // Updates crowd levels every 5 minutes based on nearby users
-  Timer.periodic(const Duration(minutes: 5), (timer) {
-    RealtimeCrowdService().autoUpdateCrowdLevels();
-  });
+  // Initialize mobile-only services
+  if (!kIsWeb) {
+    // 🔴 START AUTOMATIC REALTIME CROWD MONITORING FOR KUMBH MELA
+    // Updates crowd levels every 5 minutes based on nearby users
+    Timer.periodic(const Duration(minutes: 5), (timer) {
+      RealtimeCrowdService().autoUpdateCrowdLevels();
+    });
 
-  // Initialize notification service with navigator key for deep linking
-  final notificationService = NotificationService();
-  await notificationService.initialize();
-  notificationService.setNavigatorKey(KumbhSaathiApp.navigatorKey);
+    // Initialize notification service with navigator key for deep linking
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    notificationService.setNavigatorKey(KumbhSaathiApp.navigatorKey);
 
-  // Initialize offline map service
-  await OfflineMapService().initialize();
+    // Initialize offline map service
+    await OfflineMapService().initialize();
+  } else {
+    print(
+      '🌐 [WEB] Skipping mobile-only services (notifications, offline maps, crowd monitoring)',
+    );
+  }
 
   runApp(
     ProviderScope(

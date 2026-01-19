@@ -24,11 +24,19 @@ class FirebaseService {
       await googleSignIn.initialize();
     }
 
-    // Enable offline persistence for Firestore
-    firestore.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
+    // Enable offline persistence for Firestore (mobile only)
+    if (!kIsWeb) {
+      // Offline persistence only supported on mobile
+      firestore.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+      print('📱 [MOBILE] Firestore persistence enabled');
+    } else {
+      print(
+        '🌐 [WEB] Firestore using default web settings (IndexedDB persistence)',
+      );
+    }
 
     // Verify Firebase Storage is accessible
     try {
