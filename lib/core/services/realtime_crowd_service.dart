@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:logger/logger.dart';
+
 import '../../data/models/ghat.dart';
 
 /// Service for realtime crowd monitoring at ghats
@@ -10,7 +10,7 @@ class RealtimeCrowdService {
   RealtimeCrowdService._internal();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final _logger = Logger();
+
 
   /// Stream realtime crowd levels for all ghats
   Stream<Map<String, CrowdLevel>> streamCrowdLevels() {
@@ -46,77 +46,7 @@ class RealtimeCrowdService {
     }
   }
 
-  /// Estimate crowd level based on number of users nearby
-  /// Call this periodically to auto-update crowd levels
-  Future<void> autoUpdateCrowdLevels() async {
-    try {
-      // Get all ghats
-      final ghatsSnapshot = await _firestore.collection('ghats').get();
 
-      // Get all user locations
-      final locationsSnapshot = await _firestore
-          .collection('user_locations')
-          .get();
-
-      for (final ghatDoc in ghatsSnapshot.docs) {
-        final ghatData = ghatDoc.data();
-        final ghatLat = ghatData['latitude'] as double;
-        final ghatLng = ghatData['longitude'] as double;
-
-        // Count users within 100m radius
-        int nearbyUsers = 0;
-        for (final locDoc in locationsSnapshot.docs) {
-          final locData = locDoc.data();
-          final userLat = locData['latitude'] as double;
-          final userLng = locData['longitude'] as double;
-
-          // Simple distance check (not accurate but fast)
-          final distance = _calculateSimpleDistance(
-            ghatLat,
-            ghatLng,
-            userLat,
-            userLng,
-          );
-
-          if (distance < 0.001) {
-            // ~100m
-            nearbyUsers++;
-          }
-        }
-
-        // Determine crowd level based on user count
-        CrowdLevel newLevel;
-        if (nearbyUsers < 10) {
-          newLevel = CrowdLevel.low;
-        } else if (nearbyUsers < 50) {
-          newLevel = CrowdLevel.medium;
-        } else {
-          newLevel = CrowdLevel.high;
-        }
-
-        // Update ghat crowd level
-        await _firestore.collection('ghats').doc(ghatDoc.id).update({
-          'crowdLevel': newLevel.name,
-          'userCount': nearbyUsers,
-          'lastUpdated': FieldValue.serverTimestamp(),
-        });
-      }
-    } catch (e) {
-      _logger.e('Auto-update crowd levels failed: $e');
-    }
-  }
-
-  /// Simple distance calculation (not Haversine, just for rough estimate)
-  double _calculateSimpleDistance(
-    double lat1,
-    double lng1,
-    double lat2,
-    double lng2,
-  ) {
-    final dLat = lat1 - lat2;
-    final dLng = lng1 - lng2;
-    return (dLat * dLat + dLng * dLng);
-  }
 
   /// Get crowd statistics for dashboard
   Future<Map<String, dynamic>> getCrowdStats() async {

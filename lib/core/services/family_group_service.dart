@@ -234,6 +234,16 @@ class FamilyGroupService {
         });
   }
 
+  /// Stream group details
+  Stream<FamilyGroup?> streamGroup(String groupId) {
+    return firestore.collection('family_groups').doc(groupId).snapshots().map((
+      doc,
+    ) {
+      if (!doc.exists) return null;
+      return FamilyGroup.fromJson(doc.data()!);
+    });
+  }
+
   /// Stream group members
   Stream<List<GroupMember>> streamGroupMembers(String groupId) {
     return firestore.collection('family_groups').doc(groupId).snapshots().map((

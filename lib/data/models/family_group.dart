@@ -155,41 +155,48 @@ class GroupMember {
 /// Group settings model
 class GroupSettings {
   final double maxDistance; // in meters
-  final bool alertsEnabled;
-  final bool shareLocation;
+  final bool enableAlerts;
+  final bool enableNotifications;
+  final bool shareLocationContinuously;
 
   GroupSettings({
     this.maxDistance = 500.0,
-    this.alertsEnabled = true,
-    this.shareLocation = true,
+    this.enableAlerts = true,
+    this.enableNotifications = true,
+    this.shareLocationContinuously = true,
   });
 
   factory GroupSettings.fromJson(Map<String, dynamic> json) {
     return GroupSettings(
       maxDistance: (json['maxDistance'] as num?)?.toDouble() ?? 500.0,
-      alertsEnabled: json['alertsEnabled'] as bool? ?? true,
-      shareLocation: json['shareLocation'] as bool? ?? true,
+      enableAlerts: json['enableAlerts'] as bool? ?? true,
+      enableNotifications: json['enableNotifications'] as bool? ?? true,
+      shareLocationContinuously: json['shareLocationContinuously'] as bool? ?? true,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'maxDistance': maxDistance,
-      'alertsEnabled': alertsEnabled,
-      'shareLocation': shareLocation,
+      'enableAlerts': enableAlerts,
+      'enableNotifications': enableNotifications,
+      'shareLocationContinuously': shareLocationContinuously,
     };
   }
 
   /// Copy with method
   GroupSettings copyWith({
     double? maxDistance,
-    bool? alertsEnabled,
-    bool? shareLocation,
+    bool? enableAlerts,
+    bool? enableNotifications,
+    bool? shareLocationContinuously,
   }) {
     return GroupSettings(
       maxDistance: maxDistance ?? this.maxDistance,
-      alertsEnabled: alertsEnabled ?? this.alertsEnabled,
-      shareLocation: shareLocation ?? this.shareLocation,
+      enableAlerts: enableAlerts ?? this.enableAlerts,
+      enableNotifications: enableNotifications ?? this.enableNotifications,
+      shareLocationContinuously:
+          shareLocationContinuously ?? this.shareLocationContinuously,
     );
   }
 }

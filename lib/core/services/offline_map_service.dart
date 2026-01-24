@@ -15,6 +15,7 @@ class OfflineMapService {
   /// Initialize the tile caching system
   Future<void> initialize() async {
     try {
+
       // Create store if it doesn't exist
       final store = FMTCStore(_storeName);
 

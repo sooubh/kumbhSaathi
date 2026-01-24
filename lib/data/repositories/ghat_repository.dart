@@ -39,25 +39,40 @@ class GhatRepository {
   }
 
   /// Update crowd level (admin only)
+  /// Update crowd level (admin only)
   Future<void> updateCrowdLevel(
     String id,
     CrowdLevel level, {
     bool shouldNotify = false,
     String? customMessage,
   }) async {
-    // Get current ghat data for notification if needed
-    Ghat? ghat;
-    if (shouldNotify) {
-      ghat = await getGhatById(id);
-    }
+    // Get current ghat data for notification and logging
+    final ghat = await getGhatById(id);
+    if (ghat == null) return;
 
     await _collection.doc(id).update({
       'crowdLevel': level.name,
       'lastUpdated': FieldValue.serverTimestamp(),
     });
 
+    // Create a public update in kumbh_updates
+    try {
+      await FirebaseService.firestore.collection('kumbh_updates').add({
+        'title': 'Crowd Update: ${ghat.name}',
+        'description':
+            customMessage ?? "Crowd level is now ${level.displayName}",
+        'eventDate': DateTime.now().toIso8601String(),
+        'category': level == CrowdLevel.high ? 'emergency' : 'announcement',
+        'location': ghat.name,
+        'isImportant': level == CrowdLevel.high,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      _logger.e('Error creating kumbh update log: $e');
+    }
+
     // Send notification if enabled
-    if (shouldNotify && ghat != null) {
+    if (shouldNotify) {
       try {
         await NotificationService().sendCrowdLevelNotification(
           ghatName: ghat.name,

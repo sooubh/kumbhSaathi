@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -209,15 +210,14 @@ class _MapMarkerSelectorScreenState extends State<MapMarkerSelectorScreen> {
                       height: 50,
                       child: GestureDetector(
                         onPanUpdate: (details) {
-                          // Simple drag implementation
-                          final newLat =
-                              _selectedPosition!.latitude -
-                              (details.delta.dy * 0.0001);
-                          final newLng =
-                              _selectedPosition!.longitude +
-                              (details.delta.dx * 0.0001);
-                          final newPosition = LatLng(newLat, newLng);
-                          setState(() => _selectedPosition = newPosition);
+                          // Simple robust drag implementation
+                          final zoom = _mapController.camera.zoom;
+                          final degreesPerPixel = 360 / (256 * math.pow(2, zoom));
+                          
+                          final newLat = _selectedPosition!.latitude - (details.delta.dy * degreesPerPixel);
+                          final newLng = _selectedPosition!.longitude + (details.delta.dx * degreesPerPixel);
+                          
+                          setState(() => _selectedPosition = LatLng(newLat, newLng));
                         },
                         onPanEnd: (details) {
                           _getAddressFromLatLng(_selectedPosition!);

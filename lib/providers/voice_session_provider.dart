@@ -91,7 +91,7 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
         listenFor: const Duration(seconds: 30),
         pauseFor: const Duration(seconds: 3),
         localeId: 'en_IN',
-        cancelOnError: true,
+        listenOptions: SpeechListenOptions(cancelOnError: true),
       );
     } else {
       state = state.copyWith(

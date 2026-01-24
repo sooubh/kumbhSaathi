@@ -17,39 +17,52 @@ class GroupDetailScreen extends ConsumerStatefulWidget {
 
 class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   final _service = FamilyGroupService();
-  FamilyGroup? _group;
+
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_group?.groupName ?? 'Group Details'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => _showSettingsDialog(),
+    return StreamBuilder<FamilyGroup?>(
+      stream: _service.streamGroup(widget.groupId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Error')),
+            body: Center(child: Text('Error: ${snapshot.error}')),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data == null) {
+          return const Scaffold(
+            body: Center(child: Text('Group not found')),
+          );
+        }
+
+        final group = snapshot.data!;
+        // Sort members: yourself first, then others
+        final members = group.members.values.toList()
+          ..sort((a, b) {
+            if (a.userId == _service.currentUserId) return -1;
+            if (b.userId == _service.currentUserId) return 1;
+            return a.userName.compareTo(b.userName);
+          });
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(group.groupName),
+            actions: [
+              IconButton( // Added key for easier finding
+                icon: const Icon(Icons.settings),
+                onPressed: () => _showSettingsDialog(group),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: StreamBuilder<List<GroupMember>>(
-        stream: _service.streamGroupMembers(widget.groupId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final members = snapshot.data ?? [];
-
-          // Get current group data from first member load
-          if (members.isNotEmpty) {
-            _loadGroupData();
-          }
-
-          return ListView(
+          body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               // Members section
@@ -78,7 +91,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                         );
                       }
 
-                      return _buildMemberCard(member, distance);
+                      return _buildMemberCard(group, member, distance);
                     }).toList(),
                   );
                 },
@@ -89,30 +102,29 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               // Invite section
               _buildSectionHeader('Invite Members'),
               const SizedBox(height: 12),
-              _buildInviteCard(),
+              _buildInviteCard(group),
 
               const SizedBox(height: 24),
 
               // Leave/Delete group button
-              if (_group != null)
-                OutlinedButton.icon(
-                  onPressed: () => _confirmLeaveGroup(),
-                  icon: const Icon(Icons.exit_to_app, color: Colors.red),
-                  label: Text(
-                    _group!.isAdmin(_service.currentUserId ?? '')
-                        ? 'Delete Group'
-                        : 'Leave Group',
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(16),
-                    side: const BorderSide(color: Colors.red),
-                  ),
+              OutlinedButton.icon(
+                onPressed: () => _confirmLeaveGroup(group),
+                icon: const Icon(Icons.exit_to_app, color: Colors.red),
+                label: Text(
+                  group.isAdmin(_service.currentUserId ?? '')
+                      ? 'Delete Group'
+                      : 'Leave Group',
+                  style: const TextStyle(color: Colors.red),
                 ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                  side: const BorderSide(color: Colors.red),
+                ),
+              ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -123,7 +135,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  Widget _buildMemberCard(GroupMember member, double? distance) {
+  Widget _buildMemberCard(
+      FamilyGroup group, GroupMember member, double? distance) {
     final isCurrentUser = member.userId == _service.currentUserId;
     final Color statusColor;
     final String statusText;
@@ -204,13 +217,13 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               ),
             ),
             if (!isCurrentUser &&
-                _group?.isAdmin(_service.currentUserId ?? '') == true)
+                group.isAdmin(_service.currentUserId ?? '') == true)
               IconButton(
                 icon: const Icon(
                   Icons.remove_circle_outline,
                   color: Colors.red,
                 ),
-                onPressed: () => _confirmRemoveMember(member),
+                onPressed: () => _confirmRemoveMember(group, member),
               ),
           ],
         ),
@@ -218,9 +231,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  Widget _buildInviteCard() {
-    if (_group == null) return const SizedBox();
-
+  Widget _buildInviteCard(FamilyGroup group) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -242,7 +253,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      _group!.inviteCode,
+                      group.inviteCode,
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -255,7 +266,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 IconButton(
                   icon: const Icon(Icons.copy),
                   onPressed: () {
-                    Clipboard.setData(ClipboardData(text: _group!.inviteCode));
+                    Clipboard.setData(ClipboardData(text: group.inviteCode));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Code copied to clipboard')),
                     );
@@ -265,10 +276,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Expires: ${_formatExpiry(_group!.inviteExpiry)}',
+              'Expires: ${_formatExpiry(group.inviteExpiry)}',
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
-            if (_group!.isAdmin(_service.currentUserId ?? '')) ...[
+            if (group.isAdmin(_service.currentUserId ?? '')) ...[
               const SizedBox(height: 12),
               TextButton.icon(
                 onPressed: () => _refreshInviteCode(),
@@ -282,22 +293,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  Future<void> _loadGroupData() async {
-    try {
-      final doc = await _service.firestore
-          .collection('family_groups')
-          .doc(widget.groupId)
-          .get();
 
-      if (doc.exists && mounted) {
-        setState(() {
-          _group = FamilyGroup.fromJson(doc.data()!);
-        });
-      }
-    } catch (e) {
-      // Silently fail - will retry on next member update
-    }
-  }
 
   String _formatExpiry(DateTime? expiry) {
     if (expiry == null) return 'Never';
@@ -311,17 +307,18 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     return '${difference.inMinutes} minutes';
   }
 
-  void _showSettingsDialog() {
+
+  void _showSettingsDialog(FamilyGroup group) {
     // Default values (in production, load from Firestore)
-    double maxDistance = 500;
-    bool enableAlerts = true;
-    bool enableNotifications = true;
-    bool shareLocationContinuously = false;
+    double maxDistance = group.settings.maxDistance;
+    bool enableAlerts = group.settings.enableAlerts;
+    bool enableNotifications = group.settings.enableNotifications;
+    bool shareLocationContinuously = group.settings.shareLocationContinuously;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+        builder: (context, setDialogState) => AlertDialog(
           title: const Row(
             children: [
               Icon(Icons.settings),
@@ -351,7 +348,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   divisions: 9,
                   label: '${maxDistance.toInt()}m',
                   onChanged: (value) {
-                    setState(() => maxDistance = value);
+                    setDialogState(() => maxDistance = value);
                   },
                 ),
                 const SizedBox(height: 16),
@@ -362,7 +359,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   subtitle: const Text('Notify when members go too far'),
                   value: enableAlerts,
                   onChanged: (value) {
-                    setState(() => enableAlerts = value);
+                    setDialogState(() => enableAlerts = value);
                   },
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -373,7 +370,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   subtitle: const Text('Receive mobile notifications'),
                   value: enableNotifications,
                   onChanged: (value) {
-                    setState(() => enableNotifications = value);
+                    setDialogState(() => enableNotifications = value);
                   },
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -384,7 +381,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   subtitle: const Text('Share location in real-time'),
                   value: shareLocationContinuously,
                   onChanged: (value) {
-                    setState(() => shareLocationContinuously = value);
+                    setDialogState(() => shareLocationContinuously = value);
                   },
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -464,7 +461,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   Future<void> _refreshInviteCode() async {
     try {
       await _service.refreshInviteCode(widget.groupId);
-      await _loadGroupData();
+      // Removed _loadGroupData() as stream updates automatically
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -483,7 +480,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     }
   }
 
-  void _confirmRemoveMember(GroupMember member) {
+  void _confirmRemoveMember(FamilyGroup group, GroupMember member) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -528,8 +525,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     }
   }
 
-  void _confirmLeaveGroup() {
-    final isAdmin = _group?.isAdmin(_service.currentUserId ?? '') ?? false;
+  void _confirmLeaveGroup(FamilyGroup group) {
+    final isAdmin = group.isAdmin(_service.currentUserId ?? '');
 
     showDialog(
       context: context,
