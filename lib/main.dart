@@ -32,9 +32,6 @@ void main() async {
     // } catch (e) {
     //   Logger().e('FMTC Init Failed: $e');
     // }
-
-
-
     // Initialize notification service with navigator key for deep linking
     final notificationService = NotificationService();
     await notificationService.initialize();
