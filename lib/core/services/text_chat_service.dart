@@ -21,6 +21,7 @@ class TextChatService {
     String userMessage, {
     dynamic userProfile,
     dynamic location,
+    String? appLanguage,
   }) async {
     try {
       // Add user message to history
@@ -32,6 +33,7 @@ class TextChatService {
         userMessage,
         userProfile: userProfile,
         location: location,
+        appLanguage: appLanguage,
       );
 
       _logger.d('📤 Sending text message to Gemini 2.0 Flash');
@@ -69,11 +71,13 @@ class TextChatService {
     String userMessage, {
     dynamic userProfile,
     dynamic location,
+    String? appLanguage,
   }) {
     // Get system prompt with context
     final systemPrompt = AIConfig.getSystemPrompt(
       userProfile: userProfile,
       location: location,
+      appLanguage: appLanguage,
     );
 
     // Build contents array with conversation history

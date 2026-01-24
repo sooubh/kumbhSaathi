@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../../providers/text_chat_provider.dart';
 import 'chat_message_bubble.dart';
 import 'chat_input_field.dart';
+import '../../screens/voice/voice_assistant_sheet.dart';
 
 /// Floating chat box widget
 class FloatingChatBox extends ConsumerStatefulWidget {
@@ -51,6 +52,17 @@ class _FloatingChatBoxState extends ConsumerState<FloatingChatBox>
     });
   }
 
+  void _openVoiceAssistant() {
+    // If chat is expanded, we can keep it or close it.
+    // Let's keep it expanded but show the sheet on top.
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const VoiceAssistantSheet(),
+    );
+  }
+
   void _closeChat() {
     setState(() {
       _isExpanded = false;
@@ -88,7 +100,7 @@ class _FloatingChatBoxState extends ConsumerState<FloatingChatBox>
 
     return Positioned(
       right: 16,
-      bottom: 16,
+      bottom: 90,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
@@ -201,10 +213,23 @@ class _FloatingChatBoxState extends ConsumerState<FloatingChatBox>
               ],
             ),
           ),
+          // Voice Assistant Button
+          GestureDetector(
+            onTap: _openVoiceAssistant,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.mic, color: Colors.white, size: 18),
+            ),
+          ),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: _closeChat,
             child: Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8), // Increased touch target
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
@@ -360,7 +385,7 @@ class _FloatingChatBoxState extends ConsumerState<FloatingChatBox>
         child: Stack(
           children: [
             const Center(
-              child: Icon(Icons.chat_bubble, color: Colors.white, size: 28),
+              child: Icon(Icons.assistant, color: Colors.white, size: 28),
             ),
             if (hasUnread)
               Positioned(

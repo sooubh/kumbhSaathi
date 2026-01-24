@@ -6,7 +6,7 @@ import '../../data/models/ghat.dart';
 import '../../data/models/facility.dart';
 import '../../data/providers/data_providers.dart';
 import '../../widgets/common/action_card.dart';
-import '../../widgets/common/chatbot_button.dart';
+
 import '../../widgets/cards/live_status_card.dart';
 import '../../widgets/cards/facility_card.dart';
 import '../lost/report_lost_screen.dart';
@@ -105,8 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ],
             ),
           ),
-          // Chatbot Button
-          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
+          // Chatbot Button (Removed, now global)
         ],
       ),
     );

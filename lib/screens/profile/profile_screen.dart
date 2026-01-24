@@ -8,7 +8,6 @@ import '../../data/repositories/user_repository.dart';
 import '../../data/repositories/activity_repository.dart';
 import '../../data/models/user_activity.dart';
 import 'package:intl/intl.dart';
-import '../../widgets/common/chatbot_button.dart';
 
 /// User profile provider
 final userProfileStreamProvider = StreamProvider<UserProfile?>((ref) {
@@ -79,8 +78,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
           ),
-          // Chatbot Button
-          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
         ],
       ),
     );

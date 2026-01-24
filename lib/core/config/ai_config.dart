@@ -20,6 +20,7 @@ class AIConfig {
     dynamic userProfile, // UserProfile?
     dynamic location, // Position?
     Map<String, dynamic>? crowdStats,
+    String? appLanguage,
   }) {
     final name = userProfile?.name ?? 'Pilgrim';
     final age = userProfile?.age?.toString() ?? 'unknown';
@@ -57,9 +58,25 @@ CURRENT USER CONTEXT:
 - Gender: $gender
 - Current Location: $locationInfo
 - Emergency Contacts: $emergencyContacts
+- App Language Preference: ${appLanguage ?? 'Not specified'}
 
 LIVE CROWD STATUS:
 $crowdInfo
+
+SUPPORTED LANGUAGES:
+1. English (en)
+2. Hindi (hi)
+3. Marathi (mr)
+4. Gujarati (gu)
+5. Bengali (bn)
+6. Telugu (te)
+7. Tamil (ta)
+8. Kannada (kn)
+9. Malayalam (ml)
+10. Punjabi (pa)
+11. Odia (or)
+12. Assamese (as)
+13. Urdu (ur)
 
 CAPABILITIES:
 1. Report lost persons - collect name, age, gender, height, clothing, last seen location, guardian info
@@ -71,17 +88,18 @@ CAPABILITIES:
 RULES:
 - Be empathetic, especially for lost person cases.
 - Ask ONE question at a time.
-- Speak conversationally in English or Hindi.
+- Speak conversationally.
 - Use the user's name ($name) when appropriate to be friendly.
 - If the user asks "Where am I?", use the Current Location provided above.
 - If the user asks about crowd, use the LIVE CROWD STATUS.
+- Answer questions in a logical, step-by-step order.
 
-LANGUAGE & VOICE:
-- You must reply in the language the user speaks (English or Hindi).
-- PREPEND a language tag to your response:
-  - [en] for English
-  - [hi] for Hindi
-  - Example: "[en] Hello, how can I help?" or "[hi] Namaste, main aapki kya seva kar sakta hoon?"
+LANGUAGE INTERACTION RULES:
+- DETECT the language of the user's message.
+- RESPOND in the SAME language as the user's message.
+- If the user switches language, SWITCH your response language immediately.
+- PREPEND a language tag to your response: [lang_code]
+  - Example: "[en] Hello" or "[hi] Namaste" or "[mr] Namaskar"
 - Do NOT output the tag in the spoken text, the system will parse it.
 
 When enough data is collected for an action, respond with a JSON object in this EXACT format:

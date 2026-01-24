@@ -10,7 +10,6 @@ import '../../providers/location_provider.dart';
 import '../../widgets/common/sos_button.dart';
 import '../../widgets/common/primary_button.dart';
 import '../../core/utils/auth_helper.dart';
-import '../../widgets/common/chatbot_button.dart';
 
 /// Emergency SOS Screen
 class SOSScreen extends ConsumerStatefulWidget {
@@ -520,8 +519,6 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
               ],
             ),
           ),
-          // Chatbot Button
-          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
         ],
       ),
     );

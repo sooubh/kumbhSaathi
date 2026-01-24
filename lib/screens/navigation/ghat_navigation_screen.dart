@@ -12,7 +12,6 @@ import '../../providers/routing_provider.dart';
 import '../../widgets/cards/ghat_card.dart';
 import '../../widgets/map/map_widget.dart';
 import '../../widgets/kumbh/panchavati_legend.dart';
-import '../../widgets/common/chatbot_button.dart';
 
 /// Ghat navigation screen with map and nearby ghats
 class GhatNavigationScreen extends ConsumerStatefulWidget {
@@ -128,9 +127,6 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
               ),
             ),
           ),
-
-          // Chatbot Button
-          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
         ],
       ),
     );

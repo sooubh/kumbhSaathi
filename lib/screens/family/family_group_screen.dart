@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/family_group_service.dart';
 import '../../data/models/family_group.dart';
 import 'group_detail_screen.dart';
-import '../../widgets/common/chatbot_button.dart';
 
 /// Screen to manage family tracking groups
 class FamilyGroupScreen extends ConsumerStatefulWidget {
@@ -116,8 +115,6 @@ class _FamilyGroupScreenState extends ConsumerState<FamilyGroupScreen> {
               );
             },
           ),
-          // Chatbot Button
-          const Positioned(right: 16, bottom: 16, child: ChatbotButton()),
         ],
       ),
     );

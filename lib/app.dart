@@ -65,11 +65,21 @@ class KumbhSaathiApp extends ConsumerWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       // Add builder to overlay FloatingChatBox on all screens
       builder: (context, child) {
+        final authState = ref.watch(authProvider);
+        final languageState = ref.watch(languageProvider);
+
+        // Only show chat box when logged in and setup is complete
+        final showChat =
+            languageState.isSelected &&
+            authState.isAuthenticated &&
+            authState.profile != null &&
+            authState.profile!.isVerified;
+
         return Stack(
           children: [
             if (child != null) child,
             // Global floating chat box
-            const FloatingChatBox(),
+            if (showChat) const FloatingChatBox(),
           ],
         );
       },

@@ -52,5 +52,10 @@
 	<string>We need your location for realtime tracking and safety features during the Kumbh Mela</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>We need your location for background tracking to ensure your safety during the Kumbh Mela</string>
+	<!-- Microphone and Speech permissions for Voice Assistant -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We need access to your microphone to let you speak to the AI assistant</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>We need speech recognition to transcribe your voice commands for the AI</string>
 </dict>
 </plist>
