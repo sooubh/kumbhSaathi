@@ -460,21 +460,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               );
             }
 
-            return SizedBox(
-              height: 110,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: facilities.length,
-                itemBuilder: (context, index) {
-                  return FacilityCard(
-                    facility: facilities[index],
-                    onTap: () {
-                      // Show facility detail sheet with navigation options
-                      FacilityDetailSheet.show(context, facilities[index]);
-                    },
-                  );
-                },
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 1.5,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
               ),
+              itemCount: facilities.length,
+              itemBuilder: (context, index) {
+                return FacilityCard(
+                  facility: facilities[index],
+                  onTap: () {
+                    FacilityDetailSheet.show(context, facilities[index]);
+                  },
+                );
+              },
             );
           },
         ),

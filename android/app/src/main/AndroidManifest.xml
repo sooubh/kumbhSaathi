@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <!-- Notification permission for Android 13+ (required for push notifications) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Audio Routing & Wake Lock -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="KumbhSaathi"
         android:name="${applicationName}"

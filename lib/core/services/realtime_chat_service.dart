@@ -1,19 +1,24 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data'; // Added for Uint8List
 import 'package:logger/logger.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../config/ai_config.dart';
 
 /// Service to handle Real-time interaction with Gemini Multimodal Live API
-/// Uses WebSocket for bidirectional communication
+/// Uses WebSocket for bidirectional communication (Audio Streaming)
 class RealtimeChatService {
   final _logger = Logger();
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
 
-  // Stream controller to expose AI responses to the UI/Provider
-  final _responseController = StreamController<String>.broadcast();
-  Stream<String> get responseStream => _responseController.stream;
+  // Stream controller to expose AI Audio chunks
+  final _audioController = StreamController<Uint8List>.broadcast();
+  Stream<Uint8List> get audioStream => _audioController.stream;
+
+  // Stream for text transcripts (optional, if model sends them)
+  final _textController = StreamController<String>.broadcast();
+  Stream<String> get textStream => _textController.stream;
 
   // Stream for turn completion events
   final _turnCompleteController = StreamController<void>.broadcast();
@@ -27,6 +32,7 @@ class RealtimeChatService {
     dynamic userProfile,
     dynamic location,
     String? appLanguage,
+    List<String> responseModalities = const ['AUDIO'],
   }) async {
     if (_isConnected) return;
 
@@ -45,7 +51,7 @@ class RealtimeChatService {
         },
         onError: (error) {
           _logger.e('❌ WebSocket Error: $error');
-          _responseController.addError(error);
+          _isConnected = false;
           disconnect();
         },
         onDone: () {
@@ -59,6 +65,7 @@ class RealtimeChatService {
         userProfile: userProfile,
         location: location,
         appLanguage: appLanguage,
+        responseModalities: responseModalities,
       );
     } catch (e) {
       _logger.e('❌ Connection Failed: $e');
@@ -76,12 +83,24 @@ class RealtimeChatService {
     _subscription = null;
   }
 
-  /// Send user text input to the model
+  /// Send user AUDIO chunk to the model
+  void sendAudioChunk(Uint8List audioData) {
+    if (!_isConnected || _channel == null) return;
+
+    final message = {
+      'realtime_input': {
+        'media_chunks': [
+          {'mime_type': 'audio/pcm', 'data': base64Encode(audioData)},
+        ],
+      },
+    };
+
+    _channel!.sink.add(jsonEncode(message));
+  }
+
+  /// Send user text input to the model (if needed)
   void sendTextMessage(String text) {
-    if (!_isConnected || _channel == null) {
-      _logger.w('⚠️ Cannot send message: Not connected');
-      return;
-    }
+    if (!_isConnected || _channel == null) return;
 
     final message = {
       'client_content': {
@@ -98,29 +117,47 @@ class RealtimeChatService {
     };
 
     _channel!.sink.add(jsonEncode(message));
-    _logger.d('📤 Sent: $text');
   }
 
   /// Internal: Handle incoming WebSocket messages
   void _handleMessage(dynamic data) {
     try {
-      // Parse as Map explicitly
-      final Map<String, dynamic> json = data is String
-          ? jsonDecode(data)
-          : data as Map<String, dynamic>;
+      _logger.d('📩 Message Type: ${data.runtimeType}');
 
-      // 1. Handle server_content (Model turns, interruptions, turn complete)
+      Map<String, dynamic> json;
+      if (data is String) {
+        json = jsonDecode(data);
+      } else if (data is List<int> || data is Uint8List) {
+        // Handle binary frame (likely UTF-8 encoded JSON)
+        json = jsonDecode(utf8.decode(data as List<int>));
+      } else {
+        _logger.w('⚠️ Unknown message format: ${data.runtimeType}');
+        return;
+      }
+
+      // 1. Handle server_content
       if (json.containsKey('serverContent')) {
         final serverContent = json['serverContent'];
 
-        // A. Model Turn (Text Generation)
+        // A. Model Turn
         if (serverContent.containsKey('modelTurn')) {
           final parts = serverContent['modelTurn']['parts'] as List;
           for (final part in parts) {
-            if (part.containsKey('text')) {
+            // Handle Audio
+            if (part.containsKey('inlineData')) {
+              final mimeType = part['inlineData']['mimeType'];
+              final dataBase64 = part['inlineData']['data'];
+
+              if (mimeType.toString().startsWith('audio/')) {
+                final bytes = base64Decode(dataBase64);
+                _audioController.add(bytes);
+              }
+            }
+            // Handle Text (if enabled/received)
+            else if (part.containsKey('text')) {
               final text = part['text'] as String;
               if (text.isNotEmpty) {
-                _responseController.add(text);
+                _textController.add(text);
               }
             }
           }
@@ -128,8 +165,15 @@ class RealtimeChatService {
 
         // B. Turn Complete
         if (serverContent.containsKey('turnComplete')) {
-          // Logic for end of turn (e.g. stop loading indicator)
-          _logger.d('🤖 Turn Complete');
+          // Logic for end of turn (signal to flush buffer if needed)
+          _turnCompleteController.add(null);
+        }
+
+        // C. Interruption (User spoke while AI was speaking)
+        if (serverContent.containsKey('interrupted')) {
+          _logger.d('🛑 AI Interrupted');
+          // You might want to clear local audio buffers here
+          // We will handle this in the provider
         }
       }
       // 2. Handle tool_call (Future Implementation)
@@ -138,15 +182,11 @@ class RealtimeChatService {
       }
       // 3. Handle error
       else if (json.containsKey('error')) {
-        // Usually valid JSON error structure
         final error = json['error'];
         _logger.e('❌ Server Error: ${error['message']}');
-        _responseController.addError(
-          error['message'] ?? 'Unknown Server Error',
-        );
       }
     } catch (e) {
-      _logger.e('⚠️ Error parsing message: $e\nData: $data');
+      _logger.e('⚠️ Error parsing message: $e');
     }
   }
 
@@ -155,6 +195,7 @@ class RealtimeChatService {
     dynamic userProfile,
     dynamic location,
     String? appLanguage,
+    List<String> responseModalities = const ['AUDIO'],
   }) {
     if (_channel == null) return;
 
@@ -166,17 +207,15 @@ class RealtimeChatService {
 
     final setup = {
       'setup': {
-        'model':
-            'models/gemini-2.0-flash-exp', // Or 'models/gemini-pro' depending on availability
+        'model': 'models/gemini-2.0-flash-exp',
         'generation_config': {
-          'response_modalities': [
-            'TEXT',
-          ], // We only want TEXT back for now to feed TTS
+          'response_modalities': responseModalities, // Dynamic modalities
           'speech_config': {
             'voice_config': {
               'prebuilt_voice_config': {
-                'voice_name': 'Aoede',
-              }, // Optional voice config
+                'voice_name':
+                    'Aoede', // 'Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede'
+              },
             },
           },
         },
@@ -189,6 +228,6 @@ class RealtimeChatService {
     };
 
     _channel!.sink.add(jsonEncode(setup));
-    _logger.d('⚙️ Setup message sent');
+    _logger.d('⚙️ Setup message sent (Modalities: $responseModalities)');
   }
 }

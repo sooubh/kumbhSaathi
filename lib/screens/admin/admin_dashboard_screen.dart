@@ -4,6 +4,7 @@ import 'admin_ghats_screen.dart';
 import 'admin_facilities_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_alerts_screen.dart';
+import '../../data/repositories/facility_repository.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -27,7 +28,7 @@ class AdminDashboardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Stats Section (Placeholder)
-            _buildStatsCard(isDark),
+            _buildStatsCard(context, isDark),
             const SizedBox(height: 32),
 
             Text(
@@ -108,7 +109,7 @@ class AdminDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsCard(bool isDark) {
+  Widget _buildStatsCard(BuildContext context, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -142,11 +143,41 @@ class AdminDashboardScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildStatItem('Active Users', '1.2k'),
-              Container(width: 1, height: 40, color: Colors.white24),
               _buildStatItem('Crowd Level', 'High'),
-              Container(width: 1, height: 40, color: Colors.white24),
-              _buildStatItem('Alerts', '5'),
             ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.science, size: 18),
+              label: const Text('Seed Test Facilities'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
+              onPressed: () async {
+                try {
+                  // This is a quick hack to access repository.
+                  // Ideally use Riverpod, but for admin dash this is fine.
+                  // Ensure implementation exists.
+                  final repo = FacilityRepository();
+                  await repo.seedFacilities();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('✅ Test Facilities Added!')),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
+                  }
+                }
+              },
+            ),
           ),
         ],
       ),

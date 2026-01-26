@@ -56,10 +56,11 @@ class TextChatNotifier extends StateNotifier<TextChatState> {
         userProfile: userProfile,
         location: location,
         appLanguage: languageState.locale.languageCode,
+        responseModalities: ['TEXT'], // Request Text for Chat
       );
 
       // Listen to stream
-      _aiSubscription = _service.responseStream.listen((chunk) {
+      _aiSubscription = _service.textStream.listen((chunk) {
         _handleAiResponse(chunk);
       });
     }

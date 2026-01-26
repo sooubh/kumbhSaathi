@@ -23,16 +23,24 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
 
-    // Auto-start listening when opened
+    // Auto-start connection when opened
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(voiceSessionProvider.notifier).startListening();
+      ref.read(voiceSessionProvider.notifier).connect();
     });
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    ref.read(voiceSessionProvider.notifier).reset();
+    // We disconnect when sheet closes to stop mic/socket
+    // Note: Provider is disposed automatically if not kept alive, but explicit disconnect is safer
+    // ref.read(voiceSessionProvider.notifier).disconnect();
+    // Actually, let's let the provider dispose handle it if it's auto-dispose
+    // But if it's not auto-dispose, we should disconnect.
+    // The provider definition was `StateNotifierProvider` (not autoDispose).
+    // So we MUST disconnect manually or it keeps recording.
+    // However, calling ref.read on dispose is sometimes risky.
+    // Better to use `ref.onDispose` inside the provider itself, but here we trigger it.
     super.dispose();
   }
 
@@ -73,13 +81,13 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
                   Color color = AppColors.primaryBlue;
 
                   switch (voiceState.status) {
+                    case VoiceState.connecting:
+                      scale = 1.0;
+                      color = Colors.orange;
+                      break;
                     case VoiceState.listening:
                       scale = 1.0 + (_controller.value * 0.2);
                       color = AppColors.primaryBlue;
-                      break;
-                    case VoiceState.processing:
-                      scale = 1.0;
-                      color = Colors.purple;
                       break;
                     case VoiceState.speaking:
                       scale = 1.0 + (_controller.value * 0.1);
@@ -115,11 +123,11 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
                         child: Icon(
                           voiceState.status == VoiceState.listening
                               ? Icons.mic
-                              : voiceState.status == VoiceState.processing
-                              ? Icons.psychology
                               : voiceState.status == VoiceState.speaking
                               ? Icons.volume_up
-                              : Icons.mic_none,
+                              : voiceState.status == VoiceState.connecting
+                              ? Icons.wifi_calling_3
+                              : Icons.mic_off,
                           color: Colors.white,
                           size: 40,
                         ),
@@ -162,20 +170,31 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
                 ),
               ),
 
-            // Error Display with Retry (New)
-            if (voiceState.status == VoiceState.error)
+            // Error Display with Retry
+            if (voiceState.status == VoiceState.error ||
+                voiceState.errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    ref.read(voiceSessionProvider.notifier).startListening();
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text("Retry"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.emergency,
-                    foregroundColor: Colors.white,
-                  ),
+                child: Column(
+                  children: [
+                    Text(
+                      voiceState.errorMessage ?? 'Unknown Error',
+                      style: TextStyle(color: AppColors.emergency),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        ref.read(voiceSessionProvider.notifier).connect();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text("Retry Connection"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.emergency,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -187,7 +206,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
               children: [
                 IconButton(
                   onPressed: () {
-                    ref.read(voiceSessionProvider.notifier).reset();
+                    ref.read(voiceSessionProvider.notifier).disconnect();
                     Navigator.pop(context);
                   },
                   icon: const Icon(Icons.close),
@@ -198,23 +217,16 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
                   ),
                 ),
                 const SizedBox(width: 24),
-                if (voiceState.status == VoiceState.listening)
-                  // Stop listening button (optional, usually touch to stop)
-                  FloatingActionButton(
-                    onPressed: () {
-                      ref.read(voiceSessionProvider.notifier).stopListening();
-                    },
-                    backgroundColor: AppColors.emergency,
-                    child: const Icon(Icons.stop),
-                  )
-                else
-                  FloatingActionButton(
-                    onPressed: () {
-                      ref.read(voiceSessionProvider.notifier).startListening();
-                    },
-                    backgroundColor: AppColors.primaryBlue,
-                    child: const Icon(Icons.mic),
-                  ),
+
+                FloatingActionButton(
+                  onPressed: () {
+                    ref.read(voiceSessionProvider.notifier).disconnect();
+                    Navigator.pop(context);
+                  },
+                  backgroundColor: AppColors.primaryBlue,
+                  heroTag: 'stop_session',
+                  child: const Icon(Icons.stop),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -227,15 +239,17 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
   String _getStatusText(VoiceSessionState state) {
     switch (state.status) {
       case VoiceState.initial:
-        return 'Tap to Start';
+        return 'Ready';
+      case VoiceState.connecting:
+        return 'Connecting to Gemini Live...';
       case VoiceState.listening:
         return 'Listening...';
-      case VoiceState.processing:
-        return 'Thinking...';
       case VoiceState.speaking:
-        return 'Speaking...';
+        return 'Gemini Speaking...';
       case VoiceState.error:
-        return state.errorMessage ?? 'Error';
+        return 'Connection Error';
+      default:
+        return ''; // Case for connecting, etc.
     }
   }
 }

@@ -17,8 +17,8 @@ class FacilityCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap ?? () => FacilityDetailSheet.show(context, facility),
       child: Container(
-        width: 200,
-        margin: const EdgeInsets.only(right: 12),
+        // width: 200, // Removed for responsive grid
+        // margin: const EdgeInsets.only(right: 12), // Removed for responsive grid
         decoration: BoxDecoration(
           color: isDark ? AppColors.cardDark : Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -34,7 +34,7 @@ class FacilityCard extends StatelessWidget {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -42,16 +42,16 @@ class FacilityCard extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 36, // Slightly smaller icon bg
+                    height: 36,
                     decoration: BoxDecoration(
                       color: _getIconColor().withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       _getFacilityIcon(),
                       color: _getIconColor(),
-                      size: 22,
+                      size: 20,
                     ),
                   ),
                   const Spacer(),
@@ -76,22 +76,25 @@ class FacilityCard extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
               // Facility Name
-              Text(
-                facility.name,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? AppColors.textDarkDark
-                      : AppColors.textDarkLight,
+              Expanded(
+                // Use Expanded to take available space instead of fixed Text height risking overflow
+                child: Text(
+                  facility.name,
+                  style: TextStyle(
+                    fontSize: 13, // Slightly smaller font
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? AppColors.textDarkDark
+                        : AppColors.textDarkLight,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
 
               // Distance Info
               Row(

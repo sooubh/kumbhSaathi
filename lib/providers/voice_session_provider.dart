@@ -1,39 +1,45 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 import 'package:logger/logger.dart';
+import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:audio_session/audio_session.dart' as audio_session;
 import '../core/services/realtime_chat_service.dart';
-import '../core/services/audio_service.dart';
 import 'auth_provider.dart';
 import 'location_provider.dart';
 import 'language_provider.dart';
 
-enum VoiceState { initial, listening, processing, speaking, error }
+enum VoiceState { initial, connecting, listening, speaking, error }
 
 class VoiceSessionState {
   final VoiceState status;
-  final String text; // Transcription or Response
+  final String text; // Transcript (if available) or status message
   final String? errorMessage;
-  final String languageCode;
+  final bool isConnected;
+  final bool isSpeakerOn;
 
   VoiceSessionState({
     this.status = VoiceState.initial,
     this.text = '',
     this.errorMessage,
-    this.languageCode = 'en-IN',
+    this.isConnected = false,
+    this.isSpeakerOn = true,
   });
 
   VoiceSessionState copyWith({
     VoiceState? status,
     String? text,
     String? errorMessage,
-    String? languageCode,
+    bool? isConnected,
+    bool? isSpeakerOn,
   }) {
     return VoiceSessionState(
       status: status ?? this.status,
       text: text ?? this.text,
       errorMessage: errorMessage ?? this.errorMessage,
-      languageCode: languageCode ?? this.languageCode,
+      isConnected: isConnected ?? this.isConnected,
+      isSpeakerOn: isSpeakerOn ?? this.isSpeakerOn,
     );
   }
 }
@@ -43,42 +49,123 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
 
   VoiceSessionNotifier(this.ref) : super(VoiceSessionState());
 
-  final SpeechToText _speech = SpeechToText();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer(); // For playing AI response
+  // We might need a more low-level player for PCM streaming (like sound_stream or just flutter_pcm_sound)
+  // Standard AudioPlayer doesn't support raw PCM stream easily without converting to WAV.
+  // However, for this implementation, since we need to move fast, we can try to accumulate chunks and play,
+  // BUT the provided `voicechat.md` example used `audioplayers`?
+  // Wait, the user's `voicechat.md` example for "Live Voice Chat" used `AudioPlayer` but didn't show the `_buffer` logic for *playback*, only for *sending*.
+  // Actually, standard AudioPlayer handles files/urls well. For raw PCM, `audioplayers` 6.0 might not be enough for *streaming* raw bytes directly without a custom source.
+  // BUT, let's look at what I promised: "Implement continuous listening from RealtimeChatService -> AudioPlayer".
+  // A common trick is to write the PCM to a temporary WAV file and play it, or use a specific PCM player.
+  // Attempting to use a simple queue of SourceBytes if possible, or fall back to WAV header injection.
+  // For simplicity and robustness given instructions, I will assume we might need to queue audio or use a simple wav header wrapper.
+
   final RealtimeChatService _realtimeService = RealtimeChatService();
-  final AudioService _audio = AudioService();
   final Logger _logger = Logger();
 
-  bool _isSpeechInitialized = false;
-  bool _isListening = false;
-  StreamSubscription? _aiStreamSubscription;
+  StreamSubscription? _audioSubscription;
+  StreamSubscription? _turnCompleteSubscription;
+  StreamSubscription? _recorderSubscription;
 
-  /// Initialize services
-  Future<void> initialize() async {
+  // Audio Buffering
+  final List<int> _currentAudioBuffer = [];
+  final int _minBufferSize =
+      24000; // ~0.5 seconds at 24kHz 16-bit mono (48000 bytes/s -> 0.5s = 24000 bytes)
+  // Actually: 24000 samples * 2 bytes/sample = 48000 bytes/sec. So 24000 bytes is 0.5s.
+
+  final List<Uint8List> _audioQueue = [];
+  bool _isPlaying = false;
+
+  /// Initialize Audio Session & Player Context
+  Future<void> _configureAudioSession() async {
     try {
-      // 1. Init STT
-      _isSpeechInitialized = await _speech.initialize(
-        onError: (e) {
-          _logger.e('STT Error: $e');
-          String msg = 'Microphone error: ${e.errorMsg}';
-          if (e.errorMsg.contains('network')) {
-            msg =
-                'Voice recognition unavailable. Check internet or use Chrome.';
-          }
-          state = state.copyWith(status: VoiceState.error, errorMessage: msg);
-        },
-        onStatus: (status) {
-          _logger.d('🐛 STT Status: $status');
+      // 1. Configure Low-Level Audio Session (audio_session)
+      final session = await audio_session.AudioSession.instance;
 
-          if (status == 'notListening' || status == 'done') {
-            _isListening = false; // 🔓 UNLOCK
-          }
-        },
+      // Force Speakerphone options
+      final options =
+          audio_session.AVAudioSessionCategoryOptions.defaultToSpeaker |
+          audio_session.AVAudioSessionCategoryOptions.allowBluetooth |
+          audio_session.AVAudioSessionCategoryOptions.allowBluetoothA2dp;
+
+      await session.configure(
+        audio_session.AudioSessionConfiguration(
+          avAudioSessionCategory:
+              audio_session.AVAudioSessionCategory.playAndRecord,
+          avAudioSessionCategoryOptions: options,
+          avAudioSessionMode: audio_session
+              .AVAudioSessionMode
+              .videoChat, // videoChat often forces speaker better than voiceChat
+          avAudioSessionRouteSharingPolicy:
+              audio_session.AVAudioSessionRouteSharingPolicy.defaultPolicy,
+          avAudioSessionSetActiveOptions:
+              audio_session.AVAudioSessionSetActiveOptions.none,
+          androidAudioAttributes: audio_session.AndroidAudioAttributes(
+            contentType: audio_session.AndroidAudioContentType.speech,
+            flags: audio_session.AndroidAudioFlags.none,
+            usage: audio_session.AndroidAudioUsage.voiceCommunication,
+          ),
+          androidAudioFocusGainType:
+              audio_session.AndroidAudioFocusGainType.gain,
+          androidWillPauseWhenDucked: true,
+        ),
       );
 
-      // 2. Init TTS
-      await _audio.initialize();
+      // 2. Configure AudioPlayers specific context to match
+      // Switching to 'media' usage often forces speaker better than 'voiceCommunication' on some Android devices
+      // even if we are doing voice chat.
+      final playerContext = AudioContext(
+        android: AudioContextAndroid(
+          isSpeakerphoneOn: true,
+          stayAwake: true,
+          contentType: AndroidContentType.speech,
+          usageType: AndroidUsageType
+              .media, // CHANGED from voiceCommunication to media to force speaker
+          audioFocus: AndroidAudioFocus.gain,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playAndRecord,
+          options: const {
+            AVAudioSessionOptions.defaultToSpeaker,
+            AVAudioSessionOptions.allowBluetooth,
+            AVAudioSessionOptions.allowBluetoothA2DP,
+          },
+        ),
+      );
+      await _audioPlayer.setAudioContext(playerContext);
 
-      // 3. Connect Realtime Service
+      _logger.d('✅ Audio Session Configured (Forced Speaker)');
+    } catch (e) {
+      _logger.e('❌ Failed to configure Audio Session: $e');
+    }
+  }
+
+  /// Initialize and Connect
+  Future<void> connect() async {
+    try {
+      state = state.copyWith(
+        status: VoiceState.connecting,
+        text: 'Connecting to Gemini...',
+      );
+
+      _audioQueue.clear();
+      _currentAudioBuffer.clear();
+
+      // 0. Configure Audio Session (Important for full duplex)
+      await _configureAudioSession();
+
+      // 1. Permissions are checked in UI, but good to be safe
+      if (!await _audioRecorder.hasPermission()) {
+        state = state.copyWith(
+          status: VoiceState.error,
+          errorMessage: 'Microphone permission denied',
+        );
+        return;
+      }
+
+      // 2. Connect Realtime Service
       final userProfile = ref.read(currentProfileProvider);
       final location = ref.read(locationProvider).valueOrNull;
       final languageState = ref.read(languageProvider);
@@ -89,178 +176,199 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
         appLanguage: languageState.locale.languageCode,
       );
 
-      // 4. Listen to AI responses
-      _aiStreamSubscription = _realtimeService.responseStream.listen((chunk) {
-        _handleAiChunk(chunk);
+      // 3. Listen to AI Audio Stream
+      _audioSubscription = _realtimeService.audioStream.listen((audioBytes) {
+        _bufferAudio(audioBytes);
       });
 
-      // 5. Listen for Turn Complete
-      _realtimeService.turnCompleteStream.listen((_) {
-        _logger.d('🛑 Turn Complete Signal Received');
-        _speakBuffer(force: true);
+      // 4. Listen to Turn Complete
+      _turnCompleteSubscription = _realtimeService.turnCompleteStream.listen((
+        _,
+      ) {
+        _logger.d('🤖 Turn Complete');
+        _flushAudioBuffer();
       });
+
+      // 5. Start Recording & Streaming
+      await _startRecordingStream();
+
+      state = state.copyWith(
+        status: VoiceState.listening,
+        isConnected: true,
+        text: 'Listening...',
+      );
     } catch (e) {
       _logger.e('Init Error: $e');
       state = state.copyWith(
         status: VoiceState.error,
-        errorMessage: 'Failed to initialize voice services',
+        errorMessage: 'Failed to connect: $e',
       );
     }
   }
 
-  /// Start listening for voice input
-  Future<void> startListening() async {
-    // 🔒 HARD GUARD (MOST IMPORTANT)
-    if (_isListening) {
-      _logger.w('⚠️ STT already listening, ignoring startListening');
-      return;
+  Future<void> _startRecordingStream() async {
+    try {
+      // Ensure clean state
+      await _recorderSubscription?.cancel();
+      // await _audioRecorder.stop(); // Stop potential existing stream
+      // Actually stopping might be slow. Let's just try to start, if it fails, we catch.
+      // But for robust "restart", we should stop.
+      if (await _audioRecorder.isRecording()) {
+        await _audioRecorder.stop();
+      }
+
+      final stream = await _audioRecorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+      );
+
+      _recorderSubscription = stream.listen((data) {
+        // Send data to WebSocket
+        if (state.isConnected) {
+          _realtimeService.sendAudioChunk(data);
+        }
+      });
+      _logger.d('🎙️ Microphone Stream Started');
+
+      // CRITICAL: Re-configure audio session to force speakerphone
+      // The 'record' package might reset audio category to 'record' defaults (earpiece)
+      await _configureAudioSession();
+    } catch (e) {
+      _logger.e('Error starting stream: $e');
     }
+  }
 
-    if (state.status == VoiceState.speaking ||
-        state.status == VoiceState.processing) {
-      _logger.w('⚠️ Cannot listen while ${state.status}');
-      return;
+  void _bufferAudio(Uint8List rawPcmData) {
+    if (rawPcmData.isEmpty) return;
+
+    state = state.copyWith(
+      status: VoiceState.speaking,
+      text: 'Gemini Speaking...',
+    );
+
+    _currentAudioBuffer.addAll(rawPcmData);
+
+    // If buffer is large enough, queue it
+    if (_currentAudioBuffer.length >= _minBufferSize) {
+      _flushAudioBuffer();
     }
+  }
 
-    if (!_isSpeechInitialized) {
-      await initialize();
+  void _flushAudioBuffer() {
+    if (_currentAudioBuffer.isEmpty) return;
+
+    final chunk = Uint8List.fromList(_currentAudioBuffer);
+    _currentAudioBuffer.clear();
+
+    _audioQueue.add(chunk);
+
+    if (!_isPlaying) {
+      _playNextChunk();
     }
+  }
 
-    // Removed invalid hasSpeech check.
-    // Usually initialize returns false if not available/supported.
-
-    _logger.i('🎤 START LISTENING');
-
-    _isListening = true; // 🔐 LOCK
-
-    state = state.copyWith(status: VoiceState.listening, text: '');
-    await _audio.stop();
-
-    final langState = ref.read(languageProvider);
-    String localeId = langState.locale.languageCode == 'hi' ? 'hi_IN' : 'en_IN';
-
-    _speech.listen(
-      localeId: localeId,
-      listenFor: const Duration(seconds: 20),
-      pauseFor: const Duration(seconds: 2),
-      cancelOnError: true,
-      onResult: (result) {
-        _logger.i(
-          '🗣️ Speech: ${result.recognizedWords}, final=${result.finalResult}',
+  Future<void> _playNextChunk() async {
+    if (_audioQueue.isEmpty) {
+      _isPlaying = false;
+      // Only switch back to listening if we really are done (queue empty AND buffer empty)
+      if (_currentAudioBuffer.isEmpty) {
+        state = state.copyWith(
+          status: VoiceState.listening,
+          text: 'Listening...',
         );
 
-        state = state.copyWith(text: result.recognizedWords);
-
-        if (result.finalResult) {
-          _processQuery(result.recognizedWords);
+        // CRITICAL FIX: Restart recording stream just in case OS killed it during playback
+        if (state.isConnected) {
+          await _startRecordingStream();
         }
-      },
-    );
-  }
-
-  /// Stop listening manually
-  Future<void> stopListening() async {
-    if (_isListening) {
-      await _speech.stop();
-      _isListening = false;
+      }
+      return;
     }
-    state = state.copyWith(status: VoiceState.initial);
-  }
 
-  /// Send text to Gemini
-  void _processQuery(String query) {
-    if (query.trim().isEmpty) return;
+    _isPlaying = true;
+    final chunk = _audioQueue.removeAt(0);
 
-    // Prevent double processing
-    if (state.status == VoiceState.processing) return;
+    try {
+      // Create a WAV header for this chunk (24kHz, 1 channel, 16-bit)
+      final wavBytes = _createWavHeader(chunk);
 
-    _logger.i('➡️ Sending to AI: $query');
-    state = state.copyWith(status: VoiceState.processing);
+      // Ensure session is active before playing
+      // await _configureAudioSession(); // Might be too heavy to do every chunk, skip.
 
-    // Send to WebSocket
-    _realtimeService.sendTextMessage(query);
+      await _audioPlayer.play(BytesSource(wavBytes));
 
-    // Reset text to empty to accumulate response
-    state = state.copyWith(text: '');
-  }
+      // Wait for completion
+      await _audioPlayer.onPlayerComplete.first;
 
-  String _buffer = '';
-
-  /// Handle incoming AI text chunks
-  void _handleAiChunk(String chunk) {
-    if (chunk.isEmpty) return;
-
-    _logger.i('🤖 AI chunk: $chunk');
-
-    // Append to buffer and display state
-    _buffer += chunk;
-    state = state.copyWith(status: VoiceState.speaking, text: _buffer);
-
-    // Simple sentence detection to speak chunks naturally
-    if (chunk.contains('.') ||
-        chunk.contains('?') ||
-        chunk.contains('!') ||
-        chunk.contains('।')) {
-      _speakBuffer();
+      _playNextChunk();
+    } catch (e) {
+      _logger.e('Error playing chunk: $e');
+      _isPlaying = false;
+      _playNextChunk(); // Try next
     }
   }
 
-  Future<void> _speakBuffer({bool force = false}) async {
-    // Only return if empty AND not forcing (though if empty, nothing to speak anyway)
-    // But checking isEmpty is enough. If force is true, we still need text.
-    if (_buffer.trim().isEmpty) return;
+  /// Helper to add WAV header to raw PCM data
+  Uint8List _createWavHeader(Uint8List pcmData) {
+    var channels = 1;
+    var sampleRate = 24000; // Gemini response is usually 24kHz
+    var byteRate = sampleRate * channels * 2;
+    // ... basic header construction ...
+    // Actually, Gemini 2.0 Flash output is often 24kHz. Input 16kHz.
 
-    // Logic: If prompt says "if (_buffer.trim().isEmpty && !force) return;",
-    // it implies we might speak empty text? No, it implies we wait for punctuation.
-    // Actually, user said: "if (_buffer.trim().isEmpty && !force) return;"
-    // which means if it IS empty, we return unless forced? No, empty text is silence.
-    // The user meant "if I don't have a full sentence buffer, don't speak, UNLESS forced".
-    // But my buffer accumulation logic above calls this only on punctuation.
-    // Let's implement the force logic for the "Turn Complete" scenario.
+    // Constructing a minimal WAY header
+    var header = Uint8List(44);
+    var view = ByteData.view(header.buffer);
 
-    // Wait, the user said:
-    // Future<void> _speakBuffer({bool force = false}) async {
-    //   if (_buffer.trim().isEmpty && !force) return;
+    // RIFF check
+    view.setUint32(0, 0x52494646, Endian.big); // RIFF
+    view.setUint32(4, 36 + pcmData.length, Endian.little);
+    view.setUint32(8, 0x57415645, Endian.big); // WAVE
 
-    // This implies if buffer is NOT empty, we proceed.
-    // If buffer IS empty, and NOT force, we return.
-    // If buffer IS empty, and FORCE is true, we proceed? (To speak empty string?)
-    // Likely the user intended: "Use force to bypass checks".
-    // But checking "isEmpty" is fundamental.
+    // fmt chunk
+    view.setUint32(12, 0x666d7420, Endian.big); // fmt
+    view.setUint32(16, 16, Endian.little); // chunk size
+    view.setUint16(20, 1, Endian.little); // audio format (1 = PCM)
+    view.setUint16(22, channels, Endian.little);
+    view.setUint32(24, sampleRate, Endian.little);
+    view.setUint32(28, byteRate, Endian.little);
+    view.setUint16(32, channels * 2, Endian.little); // block align
+    view.setUint16(34, 16, Endian.little); // bits per sample
 
-    // Let's assume the user wants:
-    // "Don't speak partial chunks unless forced".
-    // But I am calling this method only on punctuation OR force.
-    // So the check `if (_buffer.trim().isEmpty) return;` is fine.
+    // data chunk
+    view.setUint32(36, 0x64617461, Endian.big); // data
+    view.setUint32(40, pcmData.length, Endian.little);
 
-    final textToSpeak = _buffer;
-    _buffer =
-        ''; // Clear buffer BEFORE speaking to avoid double-speak if called again
-
-    // Detect Language for TTS
-    bool isHindi = textToSpeak.codeUnits.any((c) => c >= 0x0900 && c <= 0x097F);
-    String langCode = isHindi ? 'hi-IN' : 'en-IN';
-
-    await _audio.setLanguage(langCode);
-    await _audio.speak(textToSpeak);
-
-    // Reset state after speaking (unless streaming continues, but we usually want to listen again)
-    // Actually, streaming might continue. But user requested:
-    state = state.copyWith(status: VoiceState.initial);
-    _isListening = false; // safety
+    var wav = Uint8List(44 + pcmData.length);
+    wav.setRange(0, 44, header);
+    wav.setRange(44, 44 + pcmData.length, pcmData);
+    return wav;
   }
 
-  void reset() {
-    _audio.stop();
-    _speech.stop();
+  Future<void> disconnect() async {
+    _recorderSubscription?.cancel();
+    _audioSubscription?.cancel();
+    _turnCompleteSubscription?.cancel();
     _realtimeService.disconnect();
-    _aiStreamSubscription?.cancel();
-    state = VoiceSessionState();
+    await _audioRecorder.stop();
+    await _audioPlayer.stop();
+    _audioQueue.clear();
+    _isPlaying = false;
+    state = VoiceSessionState(isConnected: false);
+  }
+
+  void toggleMic() {
+    // Implement mute logic if needed
   }
 
   @override
   void dispose() {
-    reset();
+    disconnect();
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 }

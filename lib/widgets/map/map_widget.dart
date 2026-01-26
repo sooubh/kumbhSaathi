@@ -98,6 +98,12 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
             userAgentPackageName: 'com.kumbhsaathi.app',
             maxZoom: 19,
             tileProvider: kIsWeb ? null : OfflineMapService().getTileProvider(),
+            errorTileCallback: (tile, error, stackTrace) {
+              // Just log the error, don't crash
+              // This can happen if offline and tile not cached
+              // We could potentially show a placeholder
+              debugPrint('Tile error: $error for $tile');
+            },
           ),
 
         // Panchavati Area Highlight
