@@ -6,6 +6,7 @@ import 'navigation/ghat_navigation_screen.dart';
 import 'family/family_group_screen.dart';
 import 'emergency/sos_screen.dart';
 import 'profile/profile_screen.dart';
+import '../../data/providers/data_providers.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -15,8 +16,6 @@ class MainScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScreenState extends ConsumerState<MainScreen> {
-  int _selectedIndex = 0;
-
   final List<Widget> _screens = [
     const HomeScreen(),
     const GhatNavigationScreen(showBackButton: false),
@@ -26,13 +25,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   ];
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    ref.read(mainTabControllerProvider.notifier).state = index;
   }
 
   @override
   Widget build(BuildContext context) {
+    final _selectedIndex = ref.watch(mainTabControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(

@@ -9,8 +9,7 @@ import '../config/ai_config.dart';
 /// Uses WebSocket for bidirectional communication (Audio Streaming)
 class RealtimeChatService {
   final _logger = Logger();
-  static const String _liveModel =
-      'models/gemini-2.5-flash-native-audio-preview-12-2025';
+  static const String _liveModel = 'models/gemini-2.5-flash';
 
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
@@ -26,6 +25,10 @@ class RealtimeChatService {
   // Stream for turn completion events
   final _turnCompleteController = StreamController<void>.broadcast();
   Stream<void> get turnCompleteStream => _turnCompleteController.stream;
+
+  // Stream fired when Gemini interrupts itself (user spoke over the assistant)
+  final _interruptedController = StreamController<void>.broadcast();
+  Stream<void> get interruptedStream => _interruptedController.stream;
 
   // Stream for protocol/runtime errors surfaced to UI/provider
   final _errorController = StreamController<String>.broadcast();
@@ -247,8 +250,7 @@ class RealtimeChatService {
         if ((serverContent['interrupted'] ?? serverContent['is_interrupted']) ==
             true) {
           _logger.d('🛑 AI Interrupted');
-          // You might want to clear local audio buffers here
-          // We will handle this in the provider
+          _interruptedController.add(null);
         }
       }
       // 2. Handle tool_call (Future Implementation)

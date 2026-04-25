@@ -386,4 +386,31 @@ class NotificationService {
       throw Exception('Failed to send crowd level notification: $e');
     }
   }
+
+  /// Send SOS emergency notification to a specific topic
+  Future<void> sendSOSNotification({
+    required String topic,
+    required String senderName,
+    required String alertId,
+  }) async {
+    try {
+      await _firestore.collection('notifications').add({
+        'title': '🚨 EMERGENCY ALARM: SOS TRIGGERED',
+        'body': '$senderName has triggered an SOS! Immediate help is required.',
+        'data': {
+          'type': 'sos',
+          'alertId': alertId,
+          'senderName': senderName,
+          // FCM importance payload for some devices
+          'android_channel_id': 'kumbhsaathi_channel',
+        },
+        'type': 'sos',
+        'topic': topic,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+    } catch (e) {
+      throw Exception('Failed to send SOS notification: $e');
+    }
+  }
 }

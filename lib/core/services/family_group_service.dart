@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:logger/logger.dart';
 import '../../data/models/family_group.dart';
+import 'notification_service.dart';
 
 /// Service for managing family tracking groups
 class FamilyGroupService {
@@ -51,6 +52,10 @@ class FamilyGroupService {
       );
 
       await groupRef.set(group.toJson());
+
+      // Subscribe creator to group's SOS topic
+      await NotificationService().subscribeToTopic('sos_${group.groupId}');
+
       _logger.i('✅ Group created: ${group.groupId}');
       return group.groupId;
     } catch (e) {
@@ -103,6 +108,9 @@ class FamilyGroupService {
         'members.$currentUserId': newMember.toJson(),
       });
 
+      // Subscribe to group's SOS topic
+      await NotificationService().subscribeToTopic('sos_${group.groupId}');
+
       _logger.i('✅ Joined group: ${group.groupId}');
     } catch (e) {
       _logger.e('❌ Error joining group: $e');
@@ -141,6 +149,9 @@ class FamilyGroupService {
       await groupDoc.reference.update({
         'members.$currentUserId': FieldValue.delete(),
       });
+
+      // Unsubscribe from group's SOS topic
+      await NotificationService().unsubscribeFromTopic('sos_${group.groupId}');
 
       _logger.i('✅ Left group: $groupId');
     } catch (e) {

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:collection/collection.dart';
 import 'package:latlong2/latlong.dart';
 import '../../data/models/route_model.dart';
@@ -11,8 +13,7 @@ class RoutingService {
 
   final MapService _mapService = MapService();
 
-  /// Calculate route using A* algorithm
-  /// For simple implementation, creates optimized waypoints with intermediate stops
+  /// Calculate route using OSRM Foot Profile API
   Future<NavigationRoute> calculateRoute({
     required LatLng start,
     required LatLng end,
@@ -20,115 +21,107 @@ class RoutingService {
     String? endName,
     List<LatLng>? viaPoints,
   }) async {
-    // For this implementation, we'll create an optimized walking route
-    // In a full implementation, you'd use actual road network data
-
-    final waypoints = <RoutePoint>[];
-    final steps = <RouteStep>[];
-
-    // Add start point
-    waypoints.add(RoutePoint(position: start, name: startName));
-
-    // If there are via points, add them
-    if (viaPoints != null && viaPoints.isNotEmpty) {
-      for (final point in viaPoints) {
-        waypoints.add(RoutePoint(position: point));
+    String coords = '${start.longitude},${start.latitude}';
+    if (viaPoints != null) {
+      for (var point in viaPoints) {
+        coords += ';${point.longitude},${point.latitude}';
       }
     }
+    coords += ';${end.longitude},${end.latitude}';
 
-    // Add end point
-    waypoints.add(RoutePoint(position: end, name: endName));
+    final url = Uri.parse(
+        'http://router.project-osrm.org/route/v1/foot/$coords?overview=full&geometries=polyline&steps=true');
 
-    // Calculate steps between each waypoint pair
-    double totalDistance = 0;
-    int totalDuration = 0;
+    try {
+      final response = await http.get(url).timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) {
+        throw Exception('Routing API returned ${response.statusCode}');
+      }
+      
+      final data = jsonDecode(response.body);
+      if (data['code'] != 'Ok' || (data['routes'] as List).isEmpty) {
+        throw Exception('No paths available');
+      }
 
-    for (int i = 0; i < waypoints.length - 1; i++) {
-      final from = waypoints[i].position;
-      final to = waypoints[i + 1].position;
+      final routeData = data['routes'][0];
+      final geometry = routeData['geometry'] as String;
+      final distance = (routeData['distance'] as num).toDouble();
+      final duration = (routeData['duration'] as num).toInt();
+      
+      final points = _decodePolyline(geometry);
+      if (points.length <= 1) {
+        throw Exception('Invalid path generated');
+      }
 
-      final segmentDistance = _mapService.calculateDistance(from, to);
-      final bearing = _mapService.calculateBearing(from, to);
-      final direction = _mapService.getCompassDirection(bearing);
-      final duration = _mapService.estimateWalkingTime(segmentDistance);
+      final waypoints = points.map((p) => RoutePoint(position: p)).toList();
+      waypoints.first = RoutePoint(position: points.first, name: startName);
+      waypoints.last = RoutePoint(position: points.last, name: endName);
 
-      // Generate intermediate waypoints for smoother route (every ~200m)
-      final intermediatePoints = _generateIntermediatePoints(from, to, 200);
-      for (final point in intermediatePoints) {
-        if (point != from && point != to) {
-          waypoints.insert(
-            waypoints.indexOf(waypoints[i + 1]),
-            RoutePoint(position: point),
-          );
+      final steps = <RouteStep>[];
+      final legs = routeData['legs'] as List;
+      for (var leg in legs) {
+        final legSteps = leg['steps'] as List;
+        for (var step in legSteps) {
+          final maneuver = step['maneuver'];
+          final location = maneuver['location'] as List;
+          steps.add(RouteStep(
+            instruction: step['name'] != null && step['name'].toString().isNotEmpty 
+                ? '${maneuver['type']} on ${step['name']}' 
+                : '${maneuver['type']}',
+            distanceMeters: (step['distance'] as num).toDouble(),
+            durationSeconds: (step['duration'] as num).toInt(),
+            position: LatLng(location[1], location[0]),
+            direction: (maneuver['modifier'] ?? 'straight').toString(),
+          ));
         }
       }
 
-      // Create step instruction
-      String instruction;
-      if (i == 0) {
-        instruction = 'Head $direction';
-        if (startName != null) {
-          instruction += ' from $startName';
-        }
-      } else if (i == waypoints.length - 2) {
-        instruction = 'Arrive at ${endName ?? "destination"}';
-      } else {
-        instruction = 'Continue $direction';
-      }
-
-      steps.add(
-        RouteStep(
-          instruction: instruction,
-          distanceMeters: segmentDistance,
-          durationSeconds: duration,
-          position: from,
-          direction: direction,
-        ),
+      return NavigationRoute(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        start: start,
+        end: end,
+        waypoints: waypoints,
+        steps: steps,
+        totalDistanceMeters: distance,
+        totalDurationSeconds: duration,
+        createdAt: DateTime.now(),
+        startName: startName,
+        endName: endName,
       );
 
-      totalDistance += segmentDistance;
-      totalDuration += duration;
+    } catch (e) {
+      throw Exception('Route unavailable: $e');
     }
-
-    return NavigationRoute(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      start: start,
-      end: end,
-      waypoints: waypoints,
-      steps: steps,
-      totalDistanceMeters: totalDistance,
-      totalDurationSeconds: totalDuration,
-      createdAt: DateTime.now(),
-      startName: startName,
-      endName: endName,
-    );
   }
 
-  /// Generate intermediate points along a line between two points
-  List<LatLng> _generateIntermediatePoints(
-    LatLng start,
-    LatLng end,
-    double intervalMeters,
-  ) {
-    final points = <LatLng>[start];
-    final totalDistance = _mapService.calculateDistance(start, end);
+  /// Decode Google Polyline format
+  List<LatLng> _decodePolyline(String encoded) {
+    List<LatLng> points = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
 
-    if (totalDistance <= intervalMeters) {
-      points.add(end);
-      return points;
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.add(LatLng(lat / 1E5, lng / 1E5));
     }
-
-    final numSegments = (totalDistance / intervalMeters).ceil();
-
-    for (int i = 1; i < numSegments; i++) {
-      final fraction = i / numSegments;
-      final lat = start.latitude + (end.latitude - start.latitude) * fraction;
-      final lng =
-          start.longitude + (end.longitude - start.longitude) * fraction;
-      points.add(LatLng(lat, lng));
-    }
-
-    points.add(end);
     return points;
   }
 
@@ -180,145 +173,4 @@ class RoutingService {
     return routes;
   }
 
-  /// Heuristic function for A* (straight-line distance)
-  double _heuristic(LatLng a, LatLng b) {
-    return _mapService.calculateDistance(a, b);
-  }
-
-  /// A* pathfinding implementation
-  /// This is a simplified version - in production, you'd use a graph with road networks
-  Future<List<LatLng>> aStarPathfinding({
-    required LatLng start,
-    required LatLng goal,
-    required List<LatLng> obstacles,
-    double gridSize = 0.0001, // ~11m grid resolution
-  }) async {
-    final openSet = PriorityQueue<_AStarNode>();
-    final closedSet = <String>{};
-    final cameFrom = <String, _AStarNode>{};
-
-    final startNode = _AStarNode(
-      position: start,
-      gCost: 0,
-      hCost: _heuristic(start, goal),
-    );
-
-    openSet.add(startNode);
-
-    while (openSet.isNotEmpty) {
-      final current = openSet.removeFirst();
-      final currentKey = _positionKey(current.position);
-
-      if (_isGoalReached(current.position, goal)) {
-        return _reconstructPath(current);
-      }
-
-      closedSet.add(currentKey);
-
-      // Get neighbors (8 directions)
-      final neighbors = _getNeighbors(current.position, gridSize);
-
-      for (final neighborPos in neighbors) {
-        final neighborKey = _positionKey(neighborPos);
-
-        if (closedSet.contains(neighborKey)) continue;
-        if (_isObstacle(neighborPos, obstacles)) continue;
-
-        final tentativeGCost =
-            current.gCost + _heuristic(current.position, neighborPos);
-
-        final neighbor = _AStarNode(
-          position: neighborPos,
-          gCost: tentativeGCost,
-          hCost: _heuristic(neighborPos, goal),
-          parent: current,
-        );
-
-        if (!cameFrom.containsKey(neighborKey) ||
-            tentativeGCost < cameFrom[neighborKey]!.gCost) {
-          cameFrom[neighborKey] = neighbor;
-          openSet.add(neighbor);
-        }
-      }
-    }
-
-    // No path found, return straight line
-    return [start, goal];
-  }
-
-  List<LatLng> _getNeighbors(LatLng position, double gridSize) {
-    return [
-      LatLng(position.latitude + gridSize, position.longitude), // N
-      LatLng(position.latitude + gridSize, position.longitude + gridSize), // NE
-      LatLng(position.latitude, position.longitude + gridSize), // E
-      LatLng(position.latitude - gridSize, position.longitude + gridSize), // SE
-      LatLng(position.latitude - gridSize, position.longitude), // S
-      LatLng(position.latitude - gridSize, position.longitude - gridSize), // SW
-      LatLng(position.latitude, position.longitude - gridSize), // W
-      LatLng(position.latitude + gridSize, position.longitude - gridSize), // NW
-    ];
-  }
-
-  bool _isGoalReached(
-    LatLng current,
-    LatLng goal, {
-    double threshold = 0.0001,
-  }) {
-    final distance = _mapService.calculateDistance(current, goal);
-    return distance < threshold * 111320; // Convert degrees to meters
-  }
-
-  bool _isObstacle(
-    LatLng position,
-    List<LatLng> obstacles, {
-    double threshold = 0.0001,
-  }) {
-    for (final obstacle in obstacles) {
-      if ((position.latitude - obstacle.latitude).abs() < threshold &&
-          (position.longitude - obstacle.longitude).abs() < threshold) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  String _positionKey(LatLng position) {
-    return '${position.latitude.toStringAsFixed(6)},${position.longitude.toStringAsFixed(6)}';
-  }
-
-  List<LatLng> _reconstructPath(_AStarNode node) {
-    final path = <LatLng>[];
-    _AStarNode? current = node;
-
-    while (current != null) {
-      path.insert(0, current.position);
-      current = current.parent;
-    }
-
-    return path;
-  }
-}
-
-/// A* node for pathfinding
-class _AStarNode implements Comparable<_AStarNode> {
-  final LatLng position;
-  final double gCost; // Cost from start
-  final double hCost; // Heuristic cost to end
-  final _AStarNode? parent;
-
-  _AStarNode({
-    required this.position,
-    required this.gCost,
-    required this.hCost,
-    this.parent,
-  });
-
-  double get fCost => gCost + hCost;
-
-  @override
-  int compareTo(_AStarNode other) {
-    if (fCost < other.fCost) return -1;
-    if (fCost > other.fCost) return 1;
-    return 0;
-  }
 }

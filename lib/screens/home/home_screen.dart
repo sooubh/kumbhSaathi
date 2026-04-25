@@ -246,7 +246,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           title: 'Emergency',
           icon: Icons.emergency_share,
           isEmergency: true,
-          onTap: () => _navigateTo(context, const SOSScreen()),
+          onTap: () => ref.read(mainTabControllerProvider.notifier).state = 3,
         ),
         ActionCard(
           title: 'Lost Persons',
@@ -263,7 +263,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           title: 'Find Ghat',
           icon: Icons.water_drop,
           iconColor: AppColors.primaryBlue,
-          onTap: () => _navigateTo(context, const GhatNavigationScreen()),
+          onTap: () => ref.read(mainTabControllerProvider.notifier).state = 1,
         ),
         if (FirebaseService.isLoggedIn)
           ActionCard(

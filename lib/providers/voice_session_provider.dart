@@ -11,21 +11,23 @@ import 'auth_provider.dart';
 import 'location_provider.dart';
 import 'language_provider.dart';
 
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
 enum VoiceState { initial, connecting, listening, speaking, error }
 
 class VoiceSessionState {
   final VoiceState status;
-  final String text; // Transcript (if available) or status message
+  final String text;
   final String? errorMessage;
   final bool isConnected;
-  final bool isSpeakerOn;
 
-  VoiceSessionState({
+  const VoiceSessionState({
     this.status = VoiceState.initial,
     this.text = '',
     this.errorMessage,
     this.isConnected = false,
-    this.isSpeakerOn = true,
   });
 
   VoiceSessionState copyWith({
@@ -34,416 +36,431 @@ class VoiceSessionState {
     String? errorMessage,
     bool clearError = false,
     bool? isConnected,
-    bool? isSpeakerOn,
   }) {
     return VoiceSessionState(
       status: status ?? this.status,
       text: text ?? this.text,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       isConnected: isConnected ?? this.isConnected,
-      isSpeakerOn: isSpeakerOn ?? this.isSpeakerOn,
     );
   }
 }
 
-class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
-  final Ref ref;
+// ---------------------------------------------------------------------------
+// Notifier
+// ---------------------------------------------------------------------------
 
-  VoiceSessionNotifier(this.ref) : super(VoiceSessionState());
+class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
+  final Ref _ref;
+
+  VoiceSessionNotifier(this._ref) : super(const VoiceSessionState());
 
   final AudioRecorder _audioRecorder = AudioRecorder();
-  final AudioPlayer _audioPlayer = AudioPlayer(); // For playing AI response
-  // We might need a more low-level player for PCM streaming (like sound_stream or just flutter_pcm_sound)
-  // Standard AudioPlayer doesn't support raw PCM stream easily without converting to WAV.
-  // However, for this implementation, since we need to move fast, we can try to accumulate chunks and play,
-  // BUT the provided `voicechat.md` example used `audioplayers`?
-  // Wait, the user's `voicechat.md` example for "Live Voice Chat" used `AudioPlayer` but didn't show the `_buffer` logic for *playback*, only for *sending*.
-  // Actually, standard AudioPlayer handles files/urls well. For raw PCM, `audioplayers` 6.0 might not be enough for *streaming* raw bytes directly without a custom source.
-  // BUT, let's look at what I promised: "Implement continuous listening from RealtimeChatService -> AudioPlayer".
-  // A common trick is to write the PCM to a temporary WAV file and play it, or use a specific PCM player.
-  // Attempting to use a simple queue of SourceBytes if possible, or fall back to WAV header injection.
-  // For simplicity and robustness given instructions, I will assume we might need to queue audio or use a simple wav header wrapper.
-
+  final AudioPlayer _audioPlayer = AudioPlayer();
   final RealtimeChatService _realtimeService = RealtimeChatService();
-  final Logger _logger = Logger();
+  final Logger _logger = Logger(
+    printer: PrettyPrinter(methodCount: 0),
+    level: Level.warning,
+  );
 
-  StreamSubscription? _audioSubscription;
-  StreamSubscription? _textSubscription;
-  StreamSubscription? _errorSubscription;
-  StreamSubscription? _connectionSubscription;
-  StreamSubscription? _turnCompleteSubscription;
-  StreamSubscription? _recorderSubscription;
+  // Stream subscriptions — all cancelled in _cancelSubscriptions()
+  StreamSubscription<Uint8List>? _audioSub;
+  StreamSubscription<String>? _textSub;
+  StreamSubscription<String>? _errorSub;
+  StreamSubscription<bool>? _connectionSub;
+  StreamSubscription<void>? _turnCompleteSub;
+  StreamSubscription<void>? _interruptedSub;
+  StreamSubscription<List<int>>? _recorderSub;
 
-  // Audio Buffering
-  final List<int> _currentAudioBuffer = [];
-  final int _minBufferSize =
-      24000; // ~0.5 seconds at 24kHz 16-bit mono (48000 bytes/s -> 0.5s = 24000 bytes)
-  // Actually: 24000 samples * 2 bytes/sample = 48000 bytes/sec. So 24000 bytes is 0.5s.
+  // ---------------------------------------------------------------------------
+  // KEY FIX — single buffer per turn.
+  // All raw PCM chunks from one Gemini turn are concatenated here.
+  // On turnComplete the whole buffer is wrapped in ONE WAV header and played
+  // with a single AudioPlayer.play() call → zero inter-chunk silence.
+  // ---------------------------------------------------------------------------
+  final List<int> _turnAudioBuffer = [];
 
-  final List<Uint8List> _audioQueue = [];
+  // Prevents re-entrant playback calls
   bool _isPlaying = false;
 
-  /// Initialize Audio Session & Player Context
+  // Prevents state updates after dispose
+  bool _disposed = false;
+
+  // ---------------------------------------------------------------------------
+  // Audio session — configured ONCE per session, never during recording
+  // ---------------------------------------------------------------------------
   Future<void> _configureAudioSession() async {
     try {
-      // 1. Configure Low-Level Audio Session (audio_session)
       final session = await audio_session.AudioSession.instance;
-
-      // Force Speakerphone options
-      final options =
-          audio_session.AVAudioSessionCategoryOptions.defaultToSpeaker |
-          audio_session.AVAudioSessionCategoryOptions.allowBluetooth |
-          audio_session.AVAudioSessionCategoryOptions.allowBluetoothA2dp;
-
       await session.configure(
         audio_session.AudioSessionConfiguration(
           avAudioSessionCategory:
               audio_session.AVAudioSessionCategory.playAndRecord,
-          avAudioSessionCategoryOptions: options,
-          avAudioSessionMode: audio_session
-              .AVAudioSessionMode
-              .videoChat, // videoChat often forces speaker better than voiceChat
+          avAudioSessionCategoryOptions:
+              audio_session.AVAudioSessionCategoryOptions.defaultToSpeaker |
+              audio_session.AVAudioSessionCategoryOptions.allowBluetooth |
+              audio_session.AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+          // voiceChat keeps mic open while speaker plays (full-duplex)
+          avAudioSessionMode: audio_session.AVAudioSessionMode.voiceChat,
           avAudioSessionRouteSharingPolicy:
               audio_session.AVAudioSessionRouteSharingPolicy.defaultPolicy,
           avAudioSessionSetActiveOptions:
               audio_session.AVAudioSessionSetActiveOptions.none,
-          androidAudioAttributes: audio_session.AndroidAudioAttributes(
+          androidAudioAttributes: const audio_session.AndroidAudioAttributes(
             contentType: audio_session.AndroidAudioContentType.speech,
             flags: audio_session.AndroidAudioFlags.none,
             usage: audio_session.AndroidAudioUsage.voiceCommunication,
           ),
           androidAudioFocusGainType:
               audio_session.AndroidAudioFocusGainType.gain,
-          androidWillPauseWhenDucked: true,
+          androidWillPauseWhenDucked: false,
         ),
       );
 
-      // 2. Configure AudioPlayers specific context to match
-      // Switching to 'media' usage often forces speaker better than 'voiceCommunication' on some Android devices
-      // even if we are doing voice chat.
-      final playerContext = AudioContext(
-        android: AudioContextAndroid(
-          isSpeakerphoneOn: true,
-          stayAwake: true,
-          contentType: AndroidContentType.speech,
-          usageType: AndroidUsageType
-              .media, // CHANGED from voiceCommunication to media to force speaker
-          audioFocus: AndroidAudioFocus.gain,
-        ),
-        iOS: AudioContextIOS(
-          category: AVAudioSessionCategory.playAndRecord,
-          options: const {
-            AVAudioSessionOptions.defaultToSpeaker,
-            AVAudioSessionOptions.allowBluetooth,
-            AVAudioSessionOptions.allowBluetoothA2DP,
-          },
+      await _audioPlayer.setAudioContext(
+        AudioContext(
+          android: AudioContextAndroid(
+            isSpeakerphoneOn: true,
+            stayAwake: true,
+            contentType: AndroidContentType.speech,
+            usageType: AndroidUsageType.voiceCommunication,
+            audioFocus: AndroidAudioFocus.gain,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playAndRecord,
+            options: const {
+              AVAudioSessionOptions.defaultToSpeaker,
+              AVAudioSessionOptions.allowBluetooth,
+              AVAudioSessionOptions.allowBluetoothA2DP,
+            },
+          ),
         ),
       );
-      await _audioPlayer.setAudioContext(playerContext);
-
-      _logger.d('✅ Audio Session Configured (Forced Speaker)');
     } catch (e) {
-      _logger.e('❌ Failed to configure Audio Session: $e');
+      _logger.w('Audio session config failed (non-fatal): $e');
     }
   }
 
-  /// Initialize and Connect
+  // ---------------------------------------------------------------------------
+  // Connect
+  // ---------------------------------------------------------------------------
   Future<void> connect() async {
-    try {
-      // Avoid duplicate subscriptions when reconnecting from retry button.
-      await _recorderSubscription?.cancel();
-      await _audioSubscription?.cancel();
-      await _textSubscription?.cancel();
-      await _errorSubscription?.cancel();
-      await _connectionSubscription?.cancel();
-      await _turnCompleteSubscription?.cancel();
+    if (_disposed) return;
 
-      state = state.copyWith(
-        status: VoiceState.connecting,
-        text: 'Connecting to Gemini...',
-        clearError: true,
+    try {
+      // Cancel any lingering subscriptions from a previous session
+      await _cancelSubscriptions();
+
+      _safeSetState(
+        state.copyWith(
+          status: VoiceState.connecting,
+          text: 'Connecting to Gemini...',
+          clearError: true,
+        ),
       );
 
-      _audioQueue.clear();
-      _currentAudioBuffer.clear();
+      _turnAudioBuffer.clear();
+      _isPlaying = false;
 
-      // 0. Configure Audio Session (Important for full duplex)
+      // --- 1. Audio session (once per connect) ---
       await _configureAudioSession();
 
-      // 1. Permissions are checked in UI, but good to be safe
-      var hasMicPermission = await _audioRecorder.hasPermission();
-      if (!hasMicPermission) {
-        final requested = await Permission.microphone.request();
-        hasMicPermission = requested.isGranted;
+      // --- 2. Microphone permission ---
+      if (!await _audioRecorder.hasPermission()) {
+        final result = await Permission.microphone.request();
+        if (!result.isGranted) {
+          _safeSetState(
+            state.copyWith(
+              status: VoiceState.error,
+              errorMessage:
+                  'Microphone permission denied. Allow access in device settings.',
+            ),
+          );
+          return;
+        }
       }
 
-      if (!hasMicPermission) {
-        state = state.copyWith(
-          status: VoiceState.error,
-          errorMessage:
-              'Microphone permission denied. Please allow microphone access in app settings.',
-        );
-        return;
-      }
-
-      // 2. Connect Realtime Service
-      final userProfile = ref.read(currentProfileProvider);
-      final location = ref.read(locationProvider).valueOrNull;
-      final languageState = ref.read(languageProvider);
+      // --- 3. Connect WebSocket ---
+      final userProfile = _ref.read(currentProfileProvider);
+      final location = _ref.read(locationProvider).valueOrNull;
+      final language = _ref.read(languageProvider);
 
       await _realtimeService.connect(
         userProfile: userProfile,
         location: location,
-        appLanguage: languageState.locale.languageCode,
+        appLanguage: language.locale.languageCode,
       );
 
-      // 3. Listen to AI Audio Stream
-      _audioSubscription = _realtimeService.audioStream.listen((audioBytes) {
-        _bufferAudio(audioBytes);
+      // --- 4. Wire up all streams ---
+      _audioSub = _realtimeService.audioStream.listen(_onAudioChunk);
+
+      _textSub = _realtimeService.textStream.listen((text) {
+        final t = text.trim();
+        if (t.isNotEmpty) _safeSetState(state.copyWith(text: t));
       });
 
-      // 4. Listen to text stream for transcript/status feedback
-      _textSubscription = _realtimeService.textStream.listen((text) {
-        final cleaned = text.trim();
-        if (cleaned.isNotEmpty) {
-          state = state.copyWith(text: cleaned);
-        }
-      });
-
-      // 5. Listen to transport/server errors
-      _errorSubscription = _realtimeService.errorStream.listen((message) {
-        state = state.copyWith(
-          status: VoiceState.error,
-          isConnected: false,
-          errorMessage: message,
+      _errorSub = _realtimeService.errorStream.listen((msg) {
+        _safeSetState(
+          state.copyWith(
+            status: VoiceState.error,
+            isConnected: false,
+            errorMessage: msg,
+          ),
         );
       });
 
-      // 6. Track socket state so UI does not stay in stale Listening mode.
-      _connectionSubscription = _realtimeService.connectionStream.listen((
-        connected,
-      ) {
+      _connectionSub = _realtimeService.connectionStream.listen((connected) {
         if (!connected && state.status != VoiceState.error) {
-          state = state.copyWith(
-            status: VoiceState.error,
-            isConnected: false,
-            errorMessage: 'Voice connection dropped. Please tap Retry.',
+          _safeSetState(
+            state.copyWith(
+              status: VoiceState.error,
+              isConnected: false,
+              errorMessage: 'Connection dropped. Tap Retry.',
+            ),
           );
         }
       });
 
-      // 7. Listen to Turn Complete
-      _turnCompleteSubscription = _realtimeService.turnCompleteStream.listen((
-        _,
-      ) {
-        _logger.d('🤖 Turn Complete');
-        _flushAudioBuffer();
-      });
+      // KEY FIX: On turn complete, flush the entire turn as ONE WAV → no gaps
+      _turnCompleteSub =
+          _realtimeService.turnCompleteStream.listen((_) => _onTurnComplete());
 
-      // 8. Start Recording & Streaming
-      await _startRecordingStream();
+      // KEY FIX: On interruption, stop playing and clear buffer immediately
+      _interruptedSub =
+          _realtimeService.interruptedStream.listen((_) => _onInterrupted());
 
-      state = state.copyWith(
-        status: VoiceState.listening,
-        isConnected: true,
-        text: 'Listening...',
-        clearError: true,
-      );
-    } catch (e) {
-      _logger.e('Init Error: $e');
-      state = state.copyWith(
-        status: VoiceState.error,
-        errorMessage: 'Failed to connect: $e',
-      );
-    }
-  }
+      // --- 5. Start microphone stream (stays running for the whole session) ---
+      await _startMicStream();
 
-  Future<void> _startRecordingStream() async {
-    try {
-      // Ensure clean state
-      await _recorderSubscription?.cancel();
-      // await _audioRecorder.stop(); // Stop potential existing stream
-      // Actually stopping might be slow. Let's just try to start, if it fails, we catch.
-      // But for robust "restart", we should stop.
-      if (await _audioRecorder.isRecording()) {
-        await _audioRecorder.stop();
-      }
-
-      final stream = await _audioRecorder.startStream(
-        const RecordConfig(
-          encoder: AudioEncoder.pcm16bits,
-          sampleRate: 16000,
-          numChannels: 1,
+      _safeSetState(
+        state.copyWith(
+          status: VoiceState.listening,
+          isConnected: true,
+          text: 'Listening...',
+          clearError: true,
         ),
       );
-
-      _recorderSubscription = stream.listen((data) {
-        // Send data to WebSocket
-        if (_realtimeService.isConnected) {
-          _realtimeService.sendAudioChunk(data);
-        }
-      });
-      _logger.d('🎙️ Microphone Stream Started');
-
-      // CRITICAL: Re-configure audio session to force speakerphone
-      // The 'record' package might reset audio category to 'record' defaults (earpiece)
-      await _configureAudioSession();
     } catch (e) {
-      _logger.e('Error starting stream: $e');
-      state = state.copyWith(
-        status: VoiceState.error,
-        errorMessage: 'Could not start microphone stream: $e',
+      _logger.e('connect() failed: $e');
+      _safeSetState(
+        state.copyWith(
+          status: VoiceState.error,
+          errorMessage: 'Failed to connect: $e',
+        ),
       );
     }
   }
 
-  void _bufferAudio(Uint8List rawPcmData) {
-    if (rawPcmData.isEmpty) return;
+  // ---------------------------------------------------------------------------
+  // Microphone stream — started ONCE, never restarted during playback.
+  // The OS keeps the mic open in playAndRecord mode so full-duplex works.
+  // ---------------------------------------------------------------------------
+  Future<void> _startMicStream() async {
+    await _recorderSub?.cancel();
 
-    state = state.copyWith(
-      status: VoiceState.speaking,
-      text: 'Gemini Speaking...',
+    if (await _audioRecorder.isRecording()) {
+      await _audioRecorder.stop();
+    }
+
+    final stream = await _audioRecorder.startStream(
+      const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: 16000,
+        numChannels: 1,
+      ),
     );
 
-    _currentAudioBuffer.addAll(rawPcmData);
-
-    // If buffer is large enough, queue it
-    if (_currentAudioBuffer.length >= _minBufferSize) {
-      _flushAudioBuffer();
-    }
-  }
-
-  void _flushAudioBuffer() {
-    if (_currentAudioBuffer.isEmpty) return;
-
-    final chunk = Uint8List.fromList(_currentAudioBuffer);
-    _currentAudioBuffer.clear();
-
-    _audioQueue.add(chunk);
-
-    if (!_isPlaying) {
-      _playNextChunk();
-    }
-  }
-
-  Future<void> _playNextChunk() async {
-    if (_audioQueue.isEmpty) {
-      _isPlaying = false;
-      // Only switch back to listening if we really are done (queue empty AND buffer empty)
-      if (_currentAudioBuffer.isEmpty) {
-        state = state.copyWith(
-          status: VoiceState.listening,
-          text: 'Listening...',
-        );
-
-        // CRITICAL FIX: Restart recording stream just in case OS killed it during playback
-        if (state.isConnected) {
-          await _startRecordingStream();
-        }
+    _recorderSub = stream.listen((chunk) {
+      if (_realtimeService.isConnected) {
+        _realtimeService.sendAudioChunk(chunk);
       }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Audio buffering — just accumulate, never play mid-turn
+  // ---------------------------------------------------------------------------
+  void _onAudioChunk(Uint8List rawPcm) {
+    if (rawPcm.isEmpty) return;
+    _turnAudioBuffer.addAll(rawPcm);
+
+    // Show speaking state as soon as first audio arrives
+    if (state.status != VoiceState.speaking) {
+      _safeSetState(state.copyWith(status: VoiceState.speaking, text: 'Speaking...'));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Turn complete — wrap full turn buffer in ONE WAV and play it
+  // ---------------------------------------------------------------------------
+  void _onTurnComplete() {
+    if (_turnAudioBuffer.isEmpty) {
+      _returnToListening();
       return;
     }
 
+    if (_isPlaying) {
+      // Already playing a previous turn (shouldn't normally happen with Gemini Live,
+      // but guard anyway — let existing playback finish naturally)
+      return;
+    }
+
+    final wavBytes = _buildWav(Uint8List.fromList(_turnAudioBuffer));
+    _turnAudioBuffer.clear();
+
+    _playWav(wavBytes);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Interrupted — user spoke while AI was speaking
+  // ---------------------------------------------------------------------------
+  void _onInterrupted() {
+    _logger.d('🛑 Interrupted — clearing audio');
+    _turnAudioBuffer.clear();
+    _isPlaying = false;
+    _audioPlayer.stop().ignore();
+    _returnToListening();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Play a single WAV byte array (no queuing needed — one WAV per turn)
+  // ---------------------------------------------------------------------------
+  Future<void> _playWav(Uint8List wavBytes) async {
     _isPlaying = true;
-    final chunk = _audioQueue.removeAt(0);
-
     try {
-      // Create a WAV header for this chunk (24kHz, 1 channel, 16-bit)
-      final wavBytes = _createWavHeader(chunk);
-
-      // Ensure session is active before playing
-      // await _configureAudioSession(); // Might be too heavy to do every chunk, skip.
-
       await _audioPlayer.play(BytesSource(wavBytes));
-
-      // Wait for completion
       await _audioPlayer.onPlayerComplete.first;
-
-      _playNextChunk();
     } catch (e) {
-      _logger.e('Error playing chunk: $e');
+      _logger.w('Playback error (non-fatal): $e');
+    } finally {
       _isPlaying = false;
-      _playNextChunk(); // Try next
+      if (!_disposed) _returnToListening();
     }
   }
 
-  /// Helper to add WAV header to raw PCM data
-  Uint8List _createWavHeader(Uint8List pcmData) {
-    var channels = 1;
-    var sampleRate = 24000; // Gemini response is usually 24kHz
-    var byteRate = sampleRate * channels * 2;
-    // ... basic header construction ...
-    // Actually, Gemini 2.0 Flash output is often 24kHz. Input 16kHz.
-
-    // Constructing a minimal WAY header
-    var header = Uint8List(44);
-    var view = ByteData.view(header.buffer);
-
-    // RIFF check
-    view.setUint32(0, 0x52494646, Endian.big); // RIFF
-    view.setUint32(4, 36 + pcmData.length, Endian.little);
-    view.setUint32(8, 0x57415645, Endian.big); // WAVE
-
-    // fmt chunk
-    view.setUint32(12, 0x666d7420, Endian.big); // fmt
-    view.setUint32(16, 16, Endian.little); // chunk size
-    view.setUint16(20, 1, Endian.little); // audio format (1 = PCM)
-    view.setUint16(22, channels, Endian.little);
-    view.setUint32(24, sampleRate, Endian.little);
-    view.setUint32(28, byteRate, Endian.little);
-    view.setUint16(32, channels * 2, Endian.little); // block align
-    view.setUint16(34, 16, Endian.little); // bits per sample
-
-    // data chunk
-    view.setUint32(36, 0x64617461, Endian.big); // data
-    view.setUint32(40, pcmData.length, Endian.little);
-
-    var wav = Uint8List(44 + pcmData.length);
-    wav.setRange(0, 44, header);
-    wav.setRange(44, 44 + pcmData.length, pcmData);
-    return wav;
+  void _returnToListening() {
+    if (!_disposed && state.isConnected) {
+      _safeSetState(
+        state.copyWith(status: VoiceState.listening, text: 'Listening...'),
+      );
+      // Mic stream is still running — no restart needed
+    }
   }
 
-  Future<void> disconnect() async {
-    await _recorderSubscription?.cancel();
-    await _audioSubscription?.cancel();
-    await _textSubscription?.cancel();
-    await _errorSubscription?.cancel();
-    await _connectionSubscription?.cancel();
-    await _turnCompleteSubscription?.cancel();
+  // ---------------------------------------------------------------------------
+  // WAV builder — one call per turn (not per chunk)
+  // Format: 24 kHz, mono, 16-bit PCM (Gemini Live output spec)
+  // ---------------------------------------------------------------------------
+  Uint8List _buildWav(Uint8List pcmData) {
+    const int sampleRate = 24000;
+    const int channels = 1;
+    const int bitDepth = 16;
+    final int byteRate = sampleRate * channels * (bitDepth ~/ 8);
+    final int blockAlign = channels * (bitDepth ~/ 8);
+    final int dataSize = pcmData.length;
+    final int chunkSize = 36 + dataSize;
 
+    final header = ByteData(44);
+    // RIFF
+    header.setUint32(0, 0x52494646, Endian.big);    // "RIFF"
+    header.setUint32(4, chunkSize, Endian.little);
+    header.setUint32(8, 0x57415645, Endian.big);    // "WAVE"
+    // fmt
+    header.setUint32(12, 0x666d7420, Endian.big);   // "fmt "
+    header.setUint32(16, 16, Endian.little);         // PCM sub-chunk size
+    header.setUint16(20, 1, Endian.little);          // PCM format
+    header.setUint16(22, channels, Endian.little);
+    header.setUint32(24, sampleRate, Endian.little);
+    header.setUint32(28, byteRate, Endian.little);
+    header.setUint16(32, blockAlign, Endian.little);
+    header.setUint16(34, bitDepth, Endian.little);
+    // data
+    header.setUint32(36, 0x64617461, Endian.big);   // "data"
+    header.setUint32(40, dataSize, Endian.little);
+
+    final out = Uint8List(44 + dataSize);
+    out.setRange(0, 44, header.buffer.asUint8List());
+    out.setRange(44, 44 + dataSize, pcmData);
+    return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Disconnect — synchronous, no async calls, safe to call from dispose()
+  // ---------------------------------------------------------------------------
+  void disconnect() {
+    _cancelSubscriptions(); // intentionally not awaited in dispose context
     _realtimeService.disconnect();
 
-    try {
-      if (await _audioRecorder.isRecording()) {
-        await _audioRecorder.stop();
-      }
-    } catch (_) {}
+    // Synchronous stops — exceptions swallowed intentionally
+    _audioPlayer.stop().ignore();
+    _audioRecorder.stop().ignore();
 
-    try {
-      await _audioPlayer.stop();
-    } catch (_) {}
-
-    _audioQueue.clear();
-    _currentAudioBuffer.clear();
+    _turnAudioBuffer.clear();
     _isPlaying = false;
-    state = VoiceSessionState(isConnected: false);
+
+    _safeSetState(const VoiceSessionState(isConnected: false));
   }
 
-  void toggleMic() {
-    // Implement mute logic if needed
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  /// Cancel all stream subscriptions without awaiting (safe from dispose)
+  Future<void> _cancelSubscriptions() async {
+    await Future.wait([
+      _audioSub?.cancel() ?? Future.value(),
+      _textSub?.cancel() ?? Future.value(),
+      _errorSub?.cancel() ?? Future.value(),
+      _connectionSub?.cancel() ?? Future.value(),
+      _turnCompleteSub?.cancel() ?? Future.value(),
+      _interruptedSub?.cancel() ?? Future.value(),
+      _recorderSub?.cancel() ?? Future.value(),
+    ]);
+    _audioSub = null;
+    _textSub = null;
+    _errorSub = null;
+    _connectionSub = null;
+    _turnCompleteSub = null;
+    _interruptedSub = null;
+    _recorderSub = null;
   }
 
+  /// Guard all state.set calls — StateNotifier throws if you mutate after dispose
+  void _safeSetState(VoiceSessionState next) {
+    if (!_disposed) state = next;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dispose — NEVER use ref here; NEVER await async work that calls setState
+  // ---------------------------------------------------------------------------
   @override
   void dispose() {
-    disconnect();
-    _audioRecorder.dispose();
+    _disposed = true;
+
+    // Cancel subs synchronously (futures are fire-and-forget)
+    _audioSub?.cancel();
+    _textSub?.cancel();
+    _errorSub?.cancel();
+    _connectionSub?.cancel();
+    _turnCompleteSub?.cancel();
+    _interruptedSub?.cancel();
+    _recorderSub?.cancel();
+
+    _realtimeService.disconnect();
+    _audioPlayer.stop().ignore();
     _audioPlayer.dispose();
+    _audioRecorder.stop().ignore();
+    _audioRecorder.dispose();
+
     super.dispose();
   }
 }
 
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
 final voiceSessionProvider =
-    StateNotifierProvider<VoiceSessionNotifier, VoiceSessionState>((ref) {
-      return VoiceSessionNotifier(ref);
-    });
+    StateNotifierProvider<VoiceSessionNotifier, VoiceSessionState>(
+      (ref) => VoiceSessionNotifier(ref),
+    );

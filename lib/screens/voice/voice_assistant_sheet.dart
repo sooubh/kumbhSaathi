@@ -13,28 +13,44 @@ class VoiceAssistantSheet extends ConsumerStatefulWidget {
 
 class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  late AnimationController _pulseController;
+
+  // ── KEY FIX ──────────────────────────────────────────────────────────────
+  // Cache the notifier during initState while ref is still valid.
+  // dispose() MUST NOT call ref.read() — the Riverpod container may have
+  // already torn down the ref by the time dispose() runs, which causes:
+  //   "Bad state: Cannot use ref after the widget was disposed"
+  // Holding a direct reference to the notifier sidesteps this entirely.
+  // ─────────────────────────────────────────────────────────────────────────
+  late final VoiceSessionNotifier _notifier;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+
+    // Cache notifier NOW — ref is fully valid in initState
+    _notifier = ref.read(voiceSessionProvider.notifier);
+
+    _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
 
-    // Auto-start connection when opened
+    // Start the voice session after the first frame so the sheet is visible
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(voiceSessionProvider.notifier).connect();
+      if (mounted) _notifier.connect();
     });
   }
 
   @override
   void dispose() {
-    ref.read(voiceSessionProvider.notifier).disconnect();
-    _controller.dispose();
+    // Safe: uses the cached notifier, not ref
+    _notifier.disconnect();
+    _pulseController.dispose();
     super.dispose();
   }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +58,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -51,7 +67,7 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag Handle
+            // Drag handle
             Container(
               width: 40,
               height: 4,
@@ -62,133 +78,64 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
             ),
             const SizedBox(height: 32),
 
-            // Status Visual
-            SizedBox(
-              height: 120,
-              width: 120,
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  double scale = 1.0;
-                  Color color = AppColors.primaryBlue;
-
-                  switch (voiceState.status) {
-                    case VoiceState.connecting:
-                      scale = 1.0;
-                      color = Colors.orange;
-                      break;
-                    case VoiceState.listening:
-                      scale = 1.0 + (_controller.value * 0.2);
-                      color = AppColors.primaryBlue;
-                      break;
-                    case VoiceState.speaking:
-                      scale = 1.0 + (_controller.value * 0.1);
-                      color = AppColors.success;
-                      break;
-                    case VoiceState.error:
-                      color = AppColors.emergency;
-                      break;
-                    default:
-                      scale = 1.0;
-                  }
-
-                  return Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color.withValues(alpha: 0.2),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 80 * scale,
-                        height: 80 * scale,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: color,
-                          boxShadow: [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.4),
-                              blurRadius: 20,
-                              spreadRadius: 5,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          voiceState.status == VoiceState.listening
-                              ? Icons.mic
-                              : voiceState.status == VoiceState.speaking
-                              ? Icons.volume_up
-                              : voiceState.status == VoiceState.connecting
-                              ? Icons.wifi_calling_3
-                              : Icons.mic_off,
-                          color: Colors.white,
-                          size: 40,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+            // Animated status indicator
+            _StatusOrb(
+              controller: _pulseController,
+              voiceState: voiceState,
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
 
-            // Text Display
+            // Status label
             Text(
-              _getStatusText(voiceState),
+              _statusHeading(voiceState),
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
                 color: isDark ? Colors.white : Colors.black87,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            if (voiceState.text.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.backgroundDark : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  voiceState.text,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: isDark ? Colors.grey[300] : Colors.grey[800],
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
 
-            // Error Display with Retry
-            if (voiceState.status == VoiceState.error ||
-                voiceState.errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Column(
-                  children: [
-                    Text(
-                      voiceState.errorMessage ?? 'Unknown Error',
-                      style: TextStyle(color: AppColors.emergency),
-                      textAlign: TextAlign.center,
+            // Transcript / status sub-text
+            if (voiceState.text.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Container(
+                  key: ValueKey(voiceState.text),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.backgroundDark
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    voiceState.text,
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.45,
+                      color: isDark ? Colors.grey[300] : Colors.grey[800],
                     ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        ref.read(voiceSessionProvider.notifier).connect();
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text("Retry Connection"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.emergency,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
+                    textAlign: TextAlign.center,
+                    maxLines: 6,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
+            ],
+
+            // Error + retry
+            if (voiceState.status == VoiceState.error ||
+                voiceState.errorMessage != null) ...[
+              const SizedBox(height: 16),
+              _ErrorCard(
+                message: voiceState.errorMessage ?? 'Unknown error',
+                onRetry: () => _notifier.connect(),
+              ),
+            ],
 
             const SizedBox(height: 32),
 
@@ -196,50 +143,197 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IconButton(
-                  onPressed: () {
-                    ref.read(voiceSessionProvider.notifier).disconnect();
-                    Navigator.pop(context);
+                // Close / dismiss
+                _CircleAction(
+                  icon: Icons.close,
+                  bg: Colors.grey.shade200,
+                  fg: Colors.black87,
+                  onTap: () {
+                    _notifier.disconnect();
+                    Navigator.of(context).pop();
                   },
-                  icon: const Icon(Icons.close),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.grey[200],
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.all(16),
-                  ),
                 ),
                 const SizedBox(width: 24),
 
+                // Stop session
                 FloatingActionButton(
-                  onPressed: () {
-                    ref.read(voiceSessionProvider.notifier).disconnect();
-                    Navigator.pop(context);
-                  },
+                  heroTag: 'voice_stop_btn',
                   backgroundColor: AppColors.primaryBlue,
-                  heroTag: 'stop_session',
-                  child: const Icon(Icons.stop),
+                  onPressed: () {
+                    _notifier.disconnect();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Icon(Icons.stop_rounded, color: Colors.white),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-  String _getStatusText(VoiceSessionState state) {
-    switch (state.status) {
+  String _statusHeading(VoiceSessionState s) {
+    switch (s.status) {
       case VoiceState.initial:
         return 'Ready';
       case VoiceState.connecting:
-        return 'Connecting to Gemini Live...';
+        return 'Connecting to Gemini Live…';
       case VoiceState.listening:
-        return 'Listening...';
+        return 'Listening…';
       case VoiceState.speaking:
-        return 'Gemini Speaking...';
+        return 'Gemini is speaking…';
       case VoiceState.error:
         return 'Connection Error';
     }
+  }
+}
+
+// ── Sub-widgets (kept small and focused) ─────────────────────────────────────
+
+class _StatusOrb extends StatelessWidget {
+  const _StatusOrb({
+    required this.controller,
+    required this.voiceState,
+  });
+
+  final AnimationController controller;
+  final VoiceSessionState voiceState;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 120,
+      height: 120,
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, child) {
+          final t = controller.value; // 0 → 1 oscillating
+          double scale = 1.0;
+          Color color;
+
+          switch (voiceState.status) {
+            case VoiceState.connecting:
+              color = Colors.orange;
+              scale = 1.0 + t * 0.08;
+              break;
+            case VoiceState.listening:
+              color = AppColors.primaryBlue;
+              scale = 1.0 + t * 0.18;
+              break;
+            case VoiceState.speaking:
+              color = AppColors.success;
+              scale = 1.0 + t * 0.12;
+              break;
+            case VoiceState.error:
+              color = AppColors.emergency;
+              break;
+            default:
+              color = AppColors.primaryBlue;
+          }
+
+          return Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.15),
+            ),
+            child: Center(
+              child: Container(
+                width: 80 * scale,
+                height: 80 * scale,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.35),
+                      blurRadius: 18,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _iconFor(voiceState.status),
+                  color: Colors.white,
+                  size: 38,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  IconData _iconFor(VoiceState s) {
+    switch (s) {
+      case VoiceState.listening:
+        return Icons.mic_rounded;
+      case VoiceState.speaking:
+        return Icons.volume_up_rounded;
+      case VoiceState.connecting:
+        return Icons.wifi_calling_3_rounded;
+      case VoiceState.error:
+        return Icons.mic_off_rounded;
+      default:
+        return Icons.mic_rounded;
+    }
+  }
+}
+
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          message,
+          style: TextStyle(color: AppColors.emergency, fontSize: 13),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 10),
+        ElevatedButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: const Text('Retry Connection'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.emergency,
+            foregroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CircleAction extends StatelessWidget {
+  const _CircleAction({
+    required this.icon,
+    required this.bg,
+    required this.fg,
+    required this.onTap,
+  });
+  final IconData icon;
+  final Color bg;
+  final Color fg;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(99),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+        child: Icon(icon, color: fg),
+      ),
+    );
   }
 }

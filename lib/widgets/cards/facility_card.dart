@@ -79,20 +79,17 @@ class FacilityCard extends StatelessWidget {
               const SizedBox(height: 8),
 
               // Facility Name
-              Expanded(
-                // Use Expanded to take available space instead of fixed Text height risking overflow
-                child: Text(
-                  facility.name,
-                  style: TextStyle(
-                    fontSize: 13, // Slightly smaller font
-                    fontWeight: FontWeight.w700,
-                    color: isDark
-                        ? AppColors.textDarkDark
-                        : AppColors.textDarkLight,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              Text(
+                facility.name,
+                style: TextStyle(
+                  fontSize: 13, // Slightly smaller font
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? AppColors.textDarkDark
+                      : AppColors.textDarkLight,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
 

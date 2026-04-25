@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/services/realtime_chat_service.dart';
+import 'package:http/http.dart' as http;
 import '../data/models/conversation_message.dart';
+import '../core/config/ai_config.dart';
 import 'auth_provider.dart';
 import 'location_provider.dart';
 import 'language_provider.dart';
 
-/// State for text chat
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
 class TextChatState {
   final List<ConversationMessage> messages;
   final bool isLoading;
@@ -36,135 +41,211 @@ class TextChatState {
   }
 }
 
-/// Notifier for text chat state management
+// ---------------------------------------------------------------------------
+// Notifier — uses the Gemini REST generateContent API for text chat.
+//
+// WHY NOT WEBSOCKET:
+//   The Live WebSocket endpoint is optimised for real-time AUDIO streaming.
+//   Requesting TEXT modality over it is unreliable and responds slowly.
+//   The standard REST API is the correct, stable choice for a text chatbot.
+// ---------------------------------------------------------------------------
+
 class TextChatNotifier extends StateNotifier<TextChatState> {
-  final Ref ref;
-  final RealtimeChatService _service = RealtimeChatService();
-  StreamSubscription? _aiSubscription;
-  String _currentResponseBuffer = '';
+  final Ref _ref;
 
-  TextChatNotifier(this.ref) : super(const TextChatState());
+  // In-memory conversation history sent to the API on every turn
+  // (gives the model multi-turn context)
+  final List<Map<String, dynamic>> _history = [];
 
-  /// Initialize connection if needed
-  Future<void> _ensureConnected() async {
-    if (!_service.isConnected) {
-      final userProfile = ref.read(currentProfileProvider);
-      final location = ref.read(locationProvider).valueOrNull;
-      final languageState = ref.read(languageProvider);
+  bool _disposed = false;
 
-      await _service.connect(
-        userProfile: userProfile,
-        location: location,
-        appLanguage: languageState.locale.languageCode,
-        responseModalities: ['TEXT'], // Request Text for Chat
-      );
+  TextChatNotifier(this._ref) : super(const TextChatState());
 
-      // Listen to stream
-      _aiSubscription = _service.textStream.listen((chunk) {
-        _handleAiResponse(chunk);
-      });
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
 
-  /// Send a message to the AI
   Future<void> sendMessage(String message) async {
-    if (message.trim().isEmpty) return;
+    final trimmed = message.trim();
+    if (trimmed.isEmpty || state.isLoading) return;
 
-    try {
-      await _ensureConnected();
-
-      // Add user message immediately
-      final userMessage = ConversationMessage.user(message.trim());
-      state = state.copyWith(
-        messages: [...state.messages, userMessage],
+    // 1. Immediately show the user's message and lock the input
+    final userMsg = ConversationMessage.user(trimmed);
+    _safeSetState(
+      state.copyWith(
+        messages: [...state.messages, userMsg],
         isLoading: true,
         isTyping: true,
         clearError: true,
-      );
-
-      // Reset buffer for new response
-      _currentResponseBuffer = '';
-
-      // Send to WebSocket
-      _service.sendTextMessage(message.trim());
-
-      // We don't await response here as it comes via stream
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        isTyping: false,
-        error: e.toString(),
-      );
-    }
-  }
-
-  void _handleAiResponse(String chunk) {
-    if (chunk.isEmpty) return;
-
-    _currentResponseBuffer += chunk;
-
-    // Check if we already have a pending AI message (last message is assistant)
-    // If so, update it. If not (first chunk), add it.
-
-    List<ConversationMessage> newMessages;
-    final lastMsg = state.messages.isNotEmpty ? state.messages.last : null;
-
-    if (lastMsg != null &&
-        lastMsg.role == MessageRole.assistant &&
-        state.isLoading) {
-      // Update existing assistant message (streaming)
-      final updatedMsg = ConversationMessage(
-        role: MessageRole.assistant,
-        content: _currentResponseBuffer,
-        timestamp: lastMsg.timestamp,
-      );
-
-      newMessages = List.from(state.messages)
-        ..removeLast()
-        ..add(updatedMsg);
-    } else {
-      // First chunk of new response
-      final newMsg = ConversationMessage.assistant(_currentResponseBuffer);
-      newMessages = [...state.messages, newMsg];
-    }
-
-    state = state.copyWith(
-      messages: newMessages,
-      isLoading: true, // Still loading until we decide it's done?
-      // For Chat UI, let's keep it true to show "active" state or false if we just want to show text.
-      // Usually streaming implies active generation.
-      isTyping: false,
+      ),
     );
-    // Note: In a real app we'd want 'turnComplete' from WebSocket to set isLoading = false.
-    // For now, we assume if we are getting text, it's loading.
-    // We can implement a timeout or just leave it.
-    // Or assuming the user will reply again?
-    // Let's rely on the stream.
+
+    // 2. Append to history (Gemini expects alternating user/model turns)
+    _history.add({
+      'role': 'user',
+      'parts': [
+        {'text': trimmed}
+      ],
+    });
+
+    try {
+      final response = await _callGemini();
+
+      if (_disposed) return;
+
+      // 3. Add the assistant reply
+      final assistantMsg = ConversationMessage.assistant(response);
+      _history.add({
+        'role': 'model',
+        'parts': [
+          {'text': response}
+        ],
+      });
+
+      _safeSetState(
+        state.copyWith(
+          messages: [...state.messages, assistantMsg],
+          isLoading: false,
+          isTyping: false,
+        ),
+      );
+    } catch (e) {
+      if (_disposed) return;
+
+      // Roll back history on failure so the next send isn't confused
+      if (_history.isNotEmpty) _history.removeLast();
+
+      _safeSetState(
+        state.copyWith(
+          isLoading: false,
+          isTyping: false,
+          error: _friendlyError(e),
+        ),
+      );
+    }
   }
 
-  /// Clear all messages and start fresh
   void clearChat() {
-    state = const TextChatState();
-    _currentResponseBuffer = '';
-    // Optional: disconnect
+    _history.clear();
+    _safeSetState(const TextChatState());
   }
 
-  /// Clear error message
-  void clearError() {
-    state = state.copyWith(clearError: true);
+  void clearError() => _safeSetState(state.copyWith(clearError: true));
+
+  // ---------------------------------------------------------------------------
+  // Gemini REST call — generateContent (single-turn with history)
+  // ---------------------------------------------------------------------------
+
+  Future<String> _callGemini() async {
+    final apiKey = AIConfig.apiKey;
+    if (apiKey.isEmpty) {
+      throw Exception('Gemini API key is not configured.');
+    }
+
+    // Read context providers (safe here — this method is always called from sendMessage
+    // while the notifier is alive)
+    final userProfile = _ref.read(currentProfileProvider);
+    final location = _ref.read(locationProvider).valueOrNull;
+    final language = _ref.read(languageProvider);
+
+    final systemPrompt = AIConfig.getSystemPrompt(
+      userProfile: userProfile,
+      location: location,
+      appLanguage: language.locale.languageCode,
+    );
+
+    final url = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/${AIConfig.modelName}:generateContent?key=$apiKey',
+    );
+
+    final body = jsonEncode({
+      'system_instruction': {
+        'parts': [
+          {'text': systemPrompt}
+        ],
+      },
+      'contents': _history,
+      'generationConfig': {
+        'temperature': 0.7,
+        'maxOutputTokens': 1024,
+        'topP': 0.95,
+      },
+      'safetySettings': [
+        {'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_NONE'},
+        {'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_NONE'},
+        {
+          'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          'threshold': 'BLOCK_NONE'
+        },
+        {
+          'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          'threshold': 'BLOCK_NONE'
+        },
+      ],
+    });
+
+    final response = await http
+        .post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        )
+        .timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      final decoded = jsonDecode(response.body);
+      final msg = decoded['error']?['message'] ?? 'HTTP ${response.statusCode}';
+      throw Exception('Gemini API error: $msg');
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final candidates = decoded['candidates'] as List?;
+    if (candidates == null || candidates.isEmpty) {
+      throw Exception('Gemini returned no candidates.');
+    }
+
+    final parts = candidates.first['content']?['parts'] as List?;
+    if (parts == null || parts.isEmpty) {
+      throw Exception('Gemini returned an empty response.');
+    }
+
+    return (parts.first['text'] as String? ?? '').trim();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  String _friendlyError(Object e) {
+    final msg = e.toString();
+    if (msg.contains('SocketException') || msg.contains('Connection')) {
+      return 'No internet connection. Please check your network.';
+    }
+    if (msg.contains('TimeoutException')) {
+      return 'Request timed out. Please try again.';
+    }
+    if (msg.contains('API key')) {
+      return 'AI service is not configured. Contact support.';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  void _safeSetState(TextChatState next) {
+    if (!_disposed) state = next;
   }
 
   @override
   void dispose() {
-    _aiSubscription?.cancel();
-    _service.disconnect();
+    _disposed = true;
     super.dispose();
   }
 }
 
-/// Provider for text chat
-final textChatProvider = StateNotifierProvider<TextChatNotifier, TextChatState>(
-  (ref) {
-    return TextChatNotifier(ref);
-  },
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+final textChatProvider =
+    StateNotifierProvider<TextChatNotifier, TextChatState>(
+  (ref) => TextChatNotifier(ref),
 );

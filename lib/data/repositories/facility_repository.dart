@@ -1,10 +1,25 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/facility.dart';
 import '../../core/services/firebase_service.dart';
 
 /// Repository for facilities data
 class FacilityRepository {
   final _firestore = FirebaseService.firestore;
+  final _storage = FirebaseStorage.instance;
+  
+  /// Upload image to storage and return URL
+  Future<String> uploadFacilityImage(File file, String name) async {
+    try {
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$name.jpg';
+      final ref = _storage.ref().child('facilities/$fileName');
+      await ref.putFile(file);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      throw Exception('Failed to upload image: $e');
+    }
+  }
 
   /// Get stream of approved facilities (for users)
   Stream<List<Facility>> getFacilities() {

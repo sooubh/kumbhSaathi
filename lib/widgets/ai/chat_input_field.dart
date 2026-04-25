@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../core/theme/app_colors.dart';
 
 /// Text input field for chat messages
@@ -20,19 +22,88 @@ class _ChatInputFieldState extends State<ChatInputField> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _hasText = false;
+  
+  stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isListening = false;
+  Timer? _silenceTimer;
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
+    _initSpeech();
+  }
+
+  void _initSpeech() async {
+    await _speech.initialize();
   }
 
   @override
   void dispose() {
+    _silenceTimer?.cancel();
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _resetSilenceTimer() {
+    _silenceTimer?.cancel();
+    _silenceTimer = Timer(const Duration(seconds: 4), () {
+      if (_isListening) {
+        _speech.stop();
+        setState(() => _isListening = false);
+        if (_controller.text.trim().isNotEmpty && !widget.isLoading) {
+          _sendMessage();
+        }
+      }
+    });
+  }
+
+  void _listen() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) {
+          if (val == 'done' || val == 'notListening') {
+            setState(() => _isListening = false);
+            _silenceTimer?.cancel();
+            // Automatically send if they finished dictating natively
+            if (_controller.text.trim().isNotEmpty && !widget.isLoading) {
+              _sendMessage();
+            }
+          }
+        },
+        onError: (val) {
+          setState(() => _isListening = false);
+          _silenceTimer?.cancel();
+        },
+      );
+      if (available) {
+        setState(() => _isListening = true);
+        _resetSilenceTimer(); // Start the strict silence timer
+        _speech.listen(
+          pauseFor: const Duration(seconds: 4), // Auto-stop after 4 seconds of silence
+          onResult: (val) {
+            _resetSilenceTimer(); // Reset silence strict timer on new word picked up
+            setState(() {
+              _controller.text = val.recognizedWords;
+              // Push cursor to end
+              _controller.selection = TextSelection.fromPosition(
+                TextPosition(offset: _controller.text.length),
+              );
+            });
+          },
+        );
+      }
+    } else {
+      // User manually pushed Stop
+      _silenceTimer?.cancel();
+      setState(() => _isListening = false);
+      _speech.stop();
+      if (_controller.text.trim().isNotEmpty && !widget.isLoading) {
+        _sendMessage();
+      }
+    }
   }
 
   void _onTextChanged() {
@@ -42,6 +113,11 @@ class _ChatInputFieldState extends State<ChatInputField> {
   }
 
   void _sendMessage() {
+    _silenceTimer?.cancel();
+    if (_isListening) {
+      _speech.stop();
+      setState(() => _isListening = false);
+    }
     if (_hasText && !widget.isLoading) {
       widget.onSendMessage(_controller.text.trim());
       _controller.clear();
@@ -86,7 +162,7 @@ class _ChatInputFieldState extends State<ChatInputField> {
                 maxLines: null,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  hintText: 'Ask me anything...',
+                  hintText: _isListening ? 'Listening (Speak now)...' : 'Ask me anything...',
                   hintStyle: TextStyle(
                     color: isDark
                         ? AppColors.textMutedDark
@@ -108,21 +184,25 @@ class _ChatInputFieldState extends State<ChatInputField> {
             ),
           ),
           const SizedBox(width: 8),
-          // Send Button
+          // Send / Mic Button
           GestureDetector(
-            onTap: _sendMessage,
+            onTap: _isListening ? _listen : (_hasText ? _sendMessage : _listen),
             child: Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: (_hasText && !widget.isLoading)
-                    ? AppColors.primaryOrange
-                    : (isDark ? AppColors.cardDark : const Color(0xFFE5E7EB)),
+                color: _isListening 
+                    ? AppColors.emergency 
+                    : (_hasText
+                        ? AppColors.primaryOrange
+                        : (isDark ? AppColors.cardDark : const Color(0xFFE5E7EB))),
                 shape: BoxShape.circle,
-                boxShadow: (_hasText && !widget.isLoading)
+                boxShadow: (_hasText || _isListening)
                     ? [
                         BoxShadow(
-                          color: AppColors.primaryOrange.withValues(alpha: 0.3),
+                          color: _isListening 
+                              ? AppColors.emergency.withValues(alpha: 0.5) 
+                              : AppColors.primaryOrange.withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -140,9 +220,9 @@ class _ChatInputFieldState extends State<ChatInputField> {
                       ),
                     )
                   : Icon(
-                      Icons.send,
+                      _isListening ? Icons.stop : (_hasText ? Icons.send : Icons.mic_none),
                       size: 20,
-                      color: (_hasText && !widget.isLoading)
+                      color: (_hasText || _isListening)
                           ? Colors.white
                           : (isDark
                                 ? AppColors.textMutedDark

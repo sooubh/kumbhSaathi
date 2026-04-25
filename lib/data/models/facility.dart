@@ -23,6 +23,7 @@ class Facility {
   final String? rejectionReason;
   final String? reviewedBy;
   final DateTime? reviewedAt;
+  final String? imageUrl;
 
   Facility({
     required this.id,
@@ -44,6 +45,7 @@ class Facility {
     this.rejectionReason,
     this.reviewedBy,
     this.reviewedAt,
+    this.imageUrl,
   });
 
   factory Facility.fromJson(Map<String, dynamic> json) {
@@ -74,6 +76,7 @@ class Facility {
       reviewedAt: json['reviewedAt'] != null
           ? (json['reviewedAt'] as Timestamp).toDate()
           : null,
+      imageUrl: json['imageUrl'] as String?,
     );
   }
 
@@ -100,6 +103,7 @@ class Facility {
       'rejectionReason': rejectionReason,
       'reviewedBy': reviewedBy,
       'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
+      'imageUrl': imageUrl,
     };
   }
 }

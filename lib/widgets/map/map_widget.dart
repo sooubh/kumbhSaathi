@@ -54,6 +54,21 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
     if (oldWidget.center != widget.center) {
       _mapController.move(widget.center, widget.zoom);
     }
+    
+    // Auto-fit route when it changes
+    if (oldWidget.route != widget.route && widget.route != null) {
+      if (widget.route!.waypoints.isNotEmpty) {
+        final bounds = LatLngBounds.fromPoints(
+          widget.route!.waypoints.map((e) => e.position).toList(),
+        );
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: bounds,
+            padding: const EdgeInsets.all(50.0),
+          ),
+        );
+      }
+    }
   }
 
   @override

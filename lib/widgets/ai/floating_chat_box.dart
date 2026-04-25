@@ -4,7 +4,6 @@ import '../../core/theme/app_colors.dart';
 import '../../providers/text_chat_provider.dart';
 import 'chat_message_bubble.dart';
 import 'chat_input_field.dart';
-import '../../screens/voice/voice_assistant_sheet.dart';
 
 /// Floating chat box widget
 class FloatingChatBox extends ConsumerStatefulWidget {
@@ -52,17 +51,6 @@ class _FloatingChatBoxState extends ConsumerState<FloatingChatBox>
     });
   }
 
-  void _openVoiceAssistant() {
-    // If chat is expanded, we can keep it or close it.
-    // Let's keep it expanded but show the sheet on top.
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const VoiceAssistantSheet(),
-    );
-  }
-
   void _closeChat() {
     setState(() {
       _isExpanded = false;
@@ -98,14 +86,25 @@ class _FloatingChatBoxState extends ConsumerState<FloatingChatBox>
       }
     });
 
-    return Positioned(
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Adjust height dynamically when keyboard is open so it doesn't overflow top
+    double expandedHeight = 500;
+    if (bottomInset > 0) {
+      expandedHeight = (screenHeight - bottomInset - 40).clamp(200.0, 500.0);
+    }
+
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
       right: 16,
-      bottom: 90,
+      bottom: _isExpanded ? (bottomInset > 0 ? bottomInset + 16 : 90) : 90,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
         width: _isExpanded ? 350 : 60,
-        height: _isExpanded ? 500 : 60,
+        height: _isExpanded ? expandedHeight : 60,
         child: _isExpanded
             ? _buildExpandedChat(context, isDark, chatState)
             : _buildCollapsedButton(context, isDark, chatState),
@@ -158,6 +157,25 @@ class _FloatingChatBoxState extends ConsumerState<FloatingChatBox>
                         },
                       ),
               ),
+              // Error Message if any
+              if (chatState.error != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: AppColors.emergency.withValues(alpha: 0.1),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: AppColors.emergency, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          chatState.error!,
+                          style: TextStyle(color: AppColors.emergency, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               // Input Field
               ChatInputField(
                 onSendMessage: (message) {
@@ -213,19 +231,6 @@ class _FloatingChatBoxState extends ConsumerState<FloatingChatBox>
               ],
             ),
           ),
-          // Voice Assistant Button
-          GestureDetector(
-            onTap: _openVoiceAssistant,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.mic, color: Colors.white, size: 18),
-            ),
-          ),
-          const SizedBox(width: 8),
           GestureDetector(
             onTap: _closeChat,
             child: Container(

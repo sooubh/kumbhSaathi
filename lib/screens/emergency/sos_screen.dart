@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/services/firebase_service.dart';
-import '../../data/repositories/emergency_repository.dart';
 import '../../providers/location_provider.dart';
 import '../../widgets/common/sos_button.dart';
 import '../../widgets/common/primary_button.dart';
-import '../../core/utils/auth_helper.dart';
+import '../../providers/sos_provider.dart';
 
 /// Emergency SOS Screen
 class SOSScreen extends ConsumerStatefulWidget {
@@ -22,84 +19,38 @@ class SOSScreen extends ConsumerStatefulWidget {
 }
 
 class _SOSScreenState extends ConsumerState<SOSScreen> {
-  bool _locationShared = false;
-  bool _isLoading = false;
-  String? _activeAlertId;
-  final _repository = EmergencyRepository();
 
-  String get _currentLocation {
-    final locationAsync = ref.read(locationProvider);
-    return locationAsync.when(
-      loading: () => 'Fetching location...',
-      error: (error, stackTrace) => 'Location unavailable',
-      data: (pos) => pos != null
-          ? 'Lat: ${pos.latitude.toStringAsFixed(4)}, Lng: ${pos.longitude.toStringAsFixed(4)}'
-          : 'Near Sangam Gate 4',
-    );
-  }
+  // Removed _currentLocation as it's now internal to the provider
 
   Future<void> _shareLocation() async {
-    setState(() {
-      _isLoading = true;
-      _locationShared = true;
-    });
+    await ref.read(sosProvider.notifier).activateSOS();
 
-    try {
-      final locationAsync = ref.read(locationProvider);
-      Position? position = locationAsync.valueOrNull;
-
-      // Send SOS alert to Firestore
-      final userName = await AuthHelper.getUserFullName();
-      final alertId = await _repository.sendSOSAlert(
-        userId: FirebaseService.currentUserId ?? 'anonymous',
-        userName: userName,
-        latitude: position?.latitude ?? 20.0063,
-        longitude: position?.longitude ?? 73.7897,
-        locationDescription: _currentLocation,
+    final sosState = ref.read(sosProvider);
+    if (sosState.error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(sosState.error!),
+          backgroundColor: AppColors.emergency,
+        ),
       );
-
-      setState(() => _activeAlertId = alertId);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('SOS Alert sent! Help is on the way.'),
-            backgroundColor: AppColors.success,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to send alert: ${e.toString()}'),
-            backgroundColor: AppColors.emergency,
-          ),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('SOS Alert sent! Help is on the way.'),
+          backgroundColor: AppColors.success,
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 
   Future<void> _cancelAlert() async {
-    if (_activeAlertId == null) return;
+    await ref.read(sosProvider.notifier).cancelSOS();
 
-    try {
-      await _repository.cancelAlert(_activeAlertId!);
-      setState(() {
-        _activeAlertId = null;
-        _locationShared = false;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('SOS Alert cancelled')));
-      }
-    } catch (e) {
-      // Ignore errors on cancel
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('SOS Alert cancelled')),
+      );
     }
   }
 
@@ -158,11 +109,21 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final locationAsync = ref.watch(locationProvider);
+    final sosState = ref.watch(sosProvider);
 
-    return Scaffold(
-      backgroundColor: isDark
-          ? AppColors.backgroundDark
-          : AppColors.backgroundLight,
+    return PopScope(
+      canPop: !sosState.isActive,
+      onPopInvokedWithResult: (didPop, dynamic result) {
+        if (!didPop) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please cancel SOS before exiting.')),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark
+            ? AppColors.backgroundDark
+            : AppColors.backgroundLight,
       appBar: AppBar(
         backgroundColor: const Color(0xFF333333),
         foregroundColor: Colors.white,
@@ -330,7 +291,7 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
                 const SizedBox(height: 32),
 
                 // SOS Button
-                if (_isLoading)
+                if (sosState.isLoading)
                   const SizedBox(
                     height: 200,
                     child: Center(child: CircularProgressIndicator()),
@@ -475,7 +436,7 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
                 const SizedBox(height: 24),
 
                 // Confirmation Message
-                if (_locationShared)
+                if (sosState.isActive)
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -504,7 +465,7 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
                                 ),
                               ),
                               Text(
-                                'Authorities have been notified. Stay calm.',
+                                'Authorities and family have been notified. Auto-syncing location.',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.green[700],
@@ -521,7 +482,8 @@ class _SOSScreenState extends ConsumerState<SOSScreen> {
           ),
         ],
       ),
-    );
+    ),
+   );
   }
 }
 

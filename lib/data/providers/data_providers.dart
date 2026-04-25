@@ -59,3 +59,6 @@ final ghatsByCrowdLevelProvider = StreamProvider.family<List<Ghat>, CrowdLevel>(
     return repository.getGhatsByCrowdLevel(level);
   },
 );
+
+// App Navigation State
+final mainTabControllerProvider = StateProvider<int>((ref) => 0);
