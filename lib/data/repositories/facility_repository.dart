@@ -85,14 +85,39 @@ class FacilityRepository {
   }
 
   /// Approve a facility
-  Future<void> approveFacility(String id) async {
+  Future<void> approveFacility(String id, String reviewerId) async {
     try {
       await _firestore
           .collection(FirestoreCollections.facilities)
           .doc(id)
-          .update({'status': 'approved'});
+          .update({
+            'status': 'approved',
+            'reviewedBy': reviewerId,
+            'reviewedAt': Timestamp.now(),
+          });
     } catch (e) {
       throw Exception('Failed to approve facility: $e');
+    }
+  }
+
+  /// Reject a facility with reason
+  Future<void> rejectFacility(
+    String id,
+    String reviewerId,
+    String reason,
+  ) async {
+    try {
+      await _firestore
+          .collection(FirestoreCollections.facilities)
+          .doc(id)
+          .update({
+            'status': 'rejected',
+            'rejectionReason': reason,
+            'reviewedBy': reviewerId,
+            'reviewedAt': Timestamp.now(),
+          });
+    } catch (e) {
+      throw Exception('Failed to reject facility: $e');
     }
   }
 
@@ -108,6 +133,27 @@ class FacilityRepository {
     }
   }
 
+  /// Get facilities submitted by a specific user
+  Stream<List<Facility>> getMyFacilities(String userId) {
+    return _firestore
+        .collection(FirestoreCollections.facilities)
+        .where('submittedBy', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+          final facilities = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return Facility.fromJson({...data, 'id': doc.id});
+          }).toList();
+          // Sort by submission date (newest first)
+          facilities.sort(
+            (a, b) => (b.submittedAt ?? DateTime.now()).compareTo(
+              a.submittedAt ?? DateTime.now(),
+            ),
+          );
+          return facilities;
+        });
+  }
+
   /// Seed initial facilities data
   Future<void> seedFacilities() async {
     try {
@@ -115,42 +161,109 @@ class FacilityRepository {
       final collection = _firestore.collection(FirestoreCollections.facilities);
 
       // Check if data already exists
-      final snapshot = await collection.limit(1).get();
-      if (snapshot.docs.isNotEmpty) return;
+      // final snapshot = await collection.limit(1).get();
+      // if (snapshot.docs.isNotEmpty) return;
 
       final facilities = [
         {
-          'name': 'Medical Camp Sector 4',
-          'nameHindi': 'मेडिकल कैंप सेक्टर 4',
-          'type': 'medical',
-          'latitude': 20.0070,
-          'longitude': 73.7900,
-          'distanceMeters': 200,
-          'walkTimeMinutes': 3,
+          'name': 'Charging Point Zone A',
+          'nameHindi': 'चार्जिंग पॉइंट जोन A',
+          'type': 'chargingPoint',
+          'latitude': 20.0075,
+          'longitude': 73.7905,
+          'distanceMeters': 250,
+          'walkTimeMinutes': 4,
           'isOpen': true,
-          'phone': '+91-1234567890',
           'status': 'approved',
         },
         {
-          'name': 'Police Station Gate 3',
-          'nameHindi': 'पुलिस स्टेशन गेट 3',
-          'type': 'police',
-          'latitude': 20.0065,
-          'longitude': 73.7890,
-          'distanceMeters': 150,
+          'name': 'Drinking Water Booth 1',
+          'nameHindi': 'पीने के पानी का बूथ 1',
+          'type': 'drinkingWater',
+          'latitude': 20.0068,
+          'longitude': 73.7888,
+          'distanceMeters': 120,
           'walkTimeMinutes': 2,
           'isOpen': true,
-          'phone': '100',
           'status': 'approved',
         },
         {
-          'name': 'Public Washroom Block 2',
-          'nameHindi': 'पब्लिक वॉशरूम ब्लॉक 2',
-          'type': 'washroom',
-          'latitude': 20.0062,
-          'longitude': 73.7892,
-          'distanceMeters': 80,
+          'name': 'Food & Prasad Center',
+          'nameHindi': 'भोजन और प्रसाद केंद्र',
+          'type': 'food',
+          'latitude': 20.0072,
+          'longitude': 73.7898,
+          'distanceMeters': 300,
+          'walkTimeMinutes': 5,
+          'isOpen': true,
+          'phone': '+91-9876543210',
+          'status': 'approved',
+        },
+        {
+          'name': 'Help Desk Near Main Gate',
+          'nameHindi': 'मुख्य द्वार के पास सहायता केंद्र',
+          'type': 'helpDesk',
+          'latitude': 20.0059,
+          'longitude': 73.7885,
+          'distanceMeters': 90,
           'walkTimeMinutes': 1,
+          'isOpen': true,
+          'status': 'approved',
+        },
+        {
+          'name': 'Parking Area P1',
+          'nameHindi': 'पार्किंग क्षेत्र P1',
+          'type': 'parking',
+          'latitude': 20.0080,
+          'longitude': 73.7912,
+          'distanceMeters': 600,
+          'walkTimeMinutes': 9,
+          'isOpen': true,
+          'status': 'approved',
+        },
+        {
+          'name': 'Hotel Ganga View',
+          'nameHindi': 'होटल गंगा व्यू',
+          'type': 'hotel',
+          'latitude': 20.0092,
+          'longitude': 73.7920,
+          'distanceMeters': 1200,
+          'walkTimeMinutes': 18,
+          'isOpen': true,
+          'phone': '+91-9123456789',
+          'status': 'approved',
+        },
+        {
+          'name': 'Temporary Police Checkpost',
+          'nameHindi': 'अस्थायी पुलिस चौकी',
+          'type': 'police',
+          'latitude': 20.0061,
+          'longitude': 73.7899,
+          'distanceMeters': 180,
+          'walkTimeMinutes': 3,
+          'isOpen': true,
+          'phone': '112',
+          'status': 'approved',
+        },
+        {
+          'name': 'Public Washroom Block 5',
+          'nameHindi': 'पब्लिक वॉशरूम ब्लॉक 5',
+          'type': 'washroom',
+          'latitude': 20.0057,
+          'longitude': 73.7889,
+          'distanceMeters': 70,
+          'walkTimeMinutes': 1,
+          'isOpen': true,
+          'status': 'approved',
+        },
+        {
+          'name': 'Lost & Found Center',
+          'nameHindi': 'खोया-पाया केंद्र',
+          'type': 'other',
+          'latitude': 20.0069,
+          'longitude': 73.7903,
+          'distanceMeters': 220,
+          'walkTimeMinutes': 4,
           'isOpen': true,
           'status': 'approved',
         },

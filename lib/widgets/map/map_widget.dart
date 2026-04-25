@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import '../../data/models/map_marker_model.dart';
 import '../../data/models/route_model.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/config/panchavati_config.dart';
+import '../../core/services/offline_map_service.dart';
 import 'custom_marker_widget.dart';
 
 /// Reusable map widget with OpenStreetMap tiles
@@ -63,6 +65,8 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
       options: MapOptions(
         initialCenter: widget.center,
         initialZoom: widget.zoom,
+        minZoom: PanchavatiConfig.minZoom,
+        maxZoom: PanchavatiConfig.maxZoom,
         onTap: widget.enableInteraction
             ? (tapPosition, point) => widget.onTap?.call(point)
             : null,
@@ -76,13 +80,14 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
         ),
       ),
       children: [
-        // Satellite or OpenStreetMap tile layer
+        // Satellite or OpenStreetMap tile layer with offline support
         if (widget.showSatellite)
           TileLayer(
             urlTemplate:
                 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             userAgentPackageName: 'com.kumbhsaathi.app',
             maxZoom: 19,
+            tileProvider: kIsWeb ? null : OfflineMapService().getTileProvider(),
           )
         else
           TileLayer(
@@ -92,6 +97,13 @@ class _MapWidgetState extends ConsumerState<MapWidget> {
             subdomains: isDark ? const ['a', 'b', 'c'] : const ['a', 'b', 'c'],
             userAgentPackageName: 'com.kumbhsaathi.app',
             maxZoom: 19,
+            tileProvider: kIsWeb ? null : OfflineMapService().getTileProvider(),
+            errorTileCallback: (tile, error, stackTrace) {
+              // Just log the error, don't crash
+              // This can happen if offline and tile not cached
+              // We could potentially show a placeholder
+              debugPrint('Tile error: $error for $tile');
+            },
           ),
 
         // Panchavati Area Highlight

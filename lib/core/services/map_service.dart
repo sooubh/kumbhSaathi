@@ -31,7 +31,8 @@ class MapService {
     final dLon = lon2 - lon1;
 
     final y = math.sin(dLon) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
         math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
 
     final bearing = math.atan2(y, x);
@@ -41,8 +42,14 @@ class MapService {
   /// Get compass direction from bearing
   String getCompassDirection(double bearing) {
     const directions = [
-      'North', 'Northeast', 'East', 'Southeast',
-      'South', 'Southwest', 'West', 'Northwest'
+      'North',
+      'Northeast',
+      'East',
+      'Southeast',
+      'South',
+      'Southwest',
+      'West',
+      'Northwest',
     ];
     final index = ((bearing + 22.5) / 45).floor() % 8;
     return directions[index];
@@ -52,10 +59,7 @@ class MapService {
   /// Returns [southwest, northeast] corners
   List<LatLng> calculateBounds(List<LatLng> points) {
     if (points.isEmpty) {
-      return [
-        LatLng(0, 0),
-        LatLng(0, 0),
-      ];
+      return [LatLng(0, 0), LatLng(0, 0)];
     }
 
     double minLat = points.first.latitude;
@@ -90,10 +94,7 @@ class MapService {
       totalLng += point.longitude;
     }
 
-    return LatLng(
-      totalLat / points.length,
-      totalLng / points.length,
-    );
+    return LatLng(totalLat / points.length, totalLng / points.length);
   }
 
   /// Calculate appropriate zoom level for given bounds and map size
@@ -107,17 +108,22 @@ class MapService {
   }) {
     const worldWidthPx = 256.0; // At zoom level 0
 
-    final latDiff = (northeast.latitude - southwest.latitude).abs();
     final lngDiff = (northeast.longitude - southwest.longitude).abs();
 
     // Calculate zoom level based on longitude difference
-    final lngZoom = math.log(((mapWidthPx - 2 * padding) * 360) / (lngDiff * worldWidthPx)) / math.ln2;
+    final lngZoom =
+        math.log(
+          ((mapWidthPx - 2 * padding) * 360) / (lngDiff * worldWidthPx),
+        ) /
+        math.ln2;
 
     // Calculate zoom level based on latitude difference
     final latRad1 = _degreesToRadians(southwest.latitude);
     final latRad2 = _degreesToRadians(northeast.latitude);
     final latFraction = (latRad2 - latRad1) / math.pi;
-    final latZoom = math.log((mapHeightPx - 2 * padding) / (worldWidthPx * latFraction)) / math.ln2;
+    final latZoom =
+        math.log((mapHeightPx - 2 * padding) / (worldWidthPx * latFraction)) /
+        math.ln2;
 
     // Return the smaller zoom level to fit everything
     return math.min(lngZoom, latZoom).clamp(1.0, 18.0);
@@ -170,8 +176,9 @@ class MapService {
       return {'point': point, 'distance': distance};
     }).toList();
 
-    pointsWithDistance.sort((a, b) =>
-        (a['distance'] as double).compareTo(b['distance'] as double));
+    pointsWithDistance.sort(
+      (a, b) => (a['distance'] as double).compareTo(b['distance'] as double),
+    );
 
     return pointsWithDistance.map((item) => item['point'] as T).toList();
   }

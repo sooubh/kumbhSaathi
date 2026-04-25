@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "kumbhSaathi",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "--web-hostname=127.0.0.1",
+                "--web-port=5000"
+            ]
+        }
+    ]
+}

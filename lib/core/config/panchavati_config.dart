@@ -3,13 +3,13 @@ import 'package:latlong2/latlong.dart';
 /// Panchavati Area Boundaries and Configuration
 class PanchavatiConfig {
   // Panchavati area boundary (polygon)
-  static final List<LatLng> panchavatiAreaBoundary = [
-    LatLng(20.0020, 73.7860), // Northeast corner
-    LatLng(20.0020, 73.7905), // Northwest corner
-    LatLng(19.9950, 73.7905), // Southwest corner
-    LatLng(19.9950, 73.7860), // Southeast corner
-    LatLng(20.0020, 73.7860), // Close polygon
-  ];
+ static final List<LatLng> panchavatiAreaBoundary = [
+  LatLng(20.0125, 73.8070), // North-East corner 
+  LatLng(20.0125, 73.7870), // North-West corner
+  LatLng(19.9950, 73.7870), // South-West corner
+  LatLng(19.9950, 73.8070), // South-East corner
+  LatLng(20.0125, 73.8070), // Close polygon back to start
+];
 
   // Center point of Panchavati (Ram Ghat)
   static const LatLng panchavatiCenter = LatLng(19.9987, 73.7883);

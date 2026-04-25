@@ -56,6 +56,11 @@ class LostPersonRepository {
     await updateStatus(id, LostPersonStatus.found);
   }
 
+  /// Update photo URL for a lost person report
+  Future<void> updatePhotoUrl(String id, String photoUrl) async {
+    await _collection.doc(id).update({'photoUrl': photoUrl});
+  }
+
   /// Delete lost person report
   Future<void> deleteReport(String id) async {
     await _collection.doc(id).delete();
@@ -65,13 +70,17 @@ class LostPersonRepository {
   Stream<List<LostPerson>> getMyLostPersonsStream(String userId) {
     return _collection
         .where('reportedBy', isEqualTo: userId)
-        .orderBy('reportedAt', descending: true)
+        // Note: Removed .orderBy to avoid composite index requirement
+        // Sorting is done client-side below
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
+        .map((snapshot) {
+          final reports = snapshot.docs
               .map((doc) => LostPerson.fromJson({...doc.data(), 'id': doc.id}))
-              .toList(),
-        );
+              .toList();
+          // Sort client-side by reportedAt (newest first)
+          reports.sort((a, b) => b.reportedAt.compareTo(a.reportedAt));
+          return reports;
+        });
   }
 
   /// Search lost persons by name

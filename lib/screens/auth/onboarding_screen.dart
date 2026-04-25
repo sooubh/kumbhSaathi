@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../l10n/app_localizations.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -43,10 +44,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       if (mounted) {
         final authState = ref.read(authProvider);
         if (authState.error != null) {
+          // Show user-friendly error messages
+          String errorMessage = 'Sign in failed';
+
+          if (authState.error!.contains('network') ||
+              authState.error!.contains('connection')) {
+            errorMessage =
+                'Network error. Please check your internet connection.';
+          } else if (authState.error!.contains('Developer Error') ||
+              authState.error!.contains('API_NOT_CONNECTED')) {
+            errorMessage = 'Configuration error. Please contact support.';
+          } else if (!authState.error!.contains('cancelled') &&
+              !authState.error!.contains('canceled')) {
+            // Only show error if it's not a cancellation
+            errorMessage = authState.error!;
+          } else {
+            // User cancelled - don't show error
+            return;
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Sign in failed: ${authState.error}'),
+              content: Text(errorMessage),
               backgroundColor: AppColors.emergency,
+              duration: const Duration(seconds: 4),
             ),
           );
         }
@@ -116,7 +137,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             width: 200,
             height: 200,
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => Container(
+            errorBuilder: (context, error, stackTrace) => Container(
               width: 150,
               height: 150,
               decoration: BoxDecoration(
@@ -132,7 +153,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 32),
           Text(
-            'Welcome to KumbhSaathi',
+            AppLocalizations.of(context)!.onboardingTitle1,
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -142,7 +163,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Your trusted companion for a safe and spiritual journey at Nashik Kumbh Mela 2025.',
+            AppLocalizations.of(context)!.onboardingDesc1,
             style: TextStyle(
               fontSize: 16,
               color: isDark
@@ -163,7 +184,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 borderRadius: BorderRadius.circular(25),
               ),
             ),
-            child: const Text('Get Started'),
+            child: Text(AppLocalizations.of(context)!.getStarted),
           ),
         ],
       ),
@@ -179,7 +200,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Icon(Icons.security, size: 80, color: AppColors.primaryBlue),
           const SizedBox(height: 32),
           Text(
-            'Your Safety First',
+            AppLocalizations.of(context)!.onboardingTitle2,
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -218,7 +239,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 borderRadius: BorderRadius.circular(25),
               ),
             ),
-            child: const Text('Next'),
+            child: Text(AppLocalizations.of(context)!.next),
           ),
         ],
       ),
@@ -279,7 +300,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Icon(Icons.account_circle, size: 80, color: AppColors.success),
           const SizedBox(height: 32),
           Text(
-            'Create Your Profile',
+            AppLocalizations.of(context)!.onboardingTitle3,
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -289,7 +310,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Sign in with Google to create your secure profile. We will ask for your basic details to keep you safe.',
+            AppLocalizations.of(context)!.onboardingDesc3,
             style: TextStyle(
               fontSize: 16,
               color: isDark
@@ -329,15 +350,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
                         height: 24,
                         width: 24,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.g_mobiledata,
-                          size: 32,
-                          color: Colors.blue,
-                        ),
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(
+                              Icons.g_mobiledata,
+                              size: 32,
+                              color: Colors.blue,
+                            ),
                       ),
                       const SizedBox(width: 12),
-                      const Text(
-                        'Sign in with Google',
+                      Text(
+                        AppLocalizations.of(context)!.signInGoogle,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

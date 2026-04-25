@@ -108,8 +108,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final credential = await FirebaseService.signInWithGoogle();
 
       if (credential == null) {
-        // User cancelled
-        // state = state.copyWith(status: AuthStatus.unauthenticated); // strictly not needed if we didn't change state
+        // User cancelled - don't set error state, just return
         return;
       }
 
@@ -127,9 +126,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
       }
     } catch (e) {
+      // Only set error for real errors, not cancellations
+      String errorMessage = e.toString();
+
+      // Don't set error state for user cancellation
+      if (errorMessage.contains('cancelled') ||
+          errorMessage.contains('canceled')) {
+        return;
+      }
+
       state = state.copyWith(
         status: AuthStatus.unauthenticated,
-        error: e.toString(),
+        error: errorMessage,
       );
     }
   }

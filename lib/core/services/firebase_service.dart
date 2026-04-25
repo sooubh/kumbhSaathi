@@ -3,10 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:logger/logger.dart';
 import '../../firebase_options.dart';
 
 /// Firebase service for database operations
 class FirebaseService {
+  static final _logger = Logger();
+
   static FirebaseFirestore get firestore => FirebaseFirestore.instance;
   static FirebaseAuth get auth => FirebaseAuth.instance;
   static FirebaseStorage get storage => FirebaseStorage.instance;
@@ -18,14 +22,35 @@ class FirebaseService {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    // Initialize Google Sign In (Required for v7.0.0+)
-    await googleSignIn.initialize();
+    // Initialize Google Sign In only on mobile (Required for v7.0.0+)
+    if (!kIsWeb) {
+      await googleSignIn.initialize();
+    }
 
-    // Enable offline persistence for Firestore
-    firestore.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
+    // Enable offline persistence for Firestore (mobile only)
+    if (!kIsWeb) {
+      // Offline persistence only supported on mobile
+      firestore.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+      _logger.i('📱 [MOBILE] Firestore persistence enabled');
+    } else {
+      _logger.i(
+        '🌐 [WEB] Firestore using default web settings (IndexedDB persistence)',
+      );
+    }
+
+    // Verify Firebase Storage is accessible
+    try {
+      // Test storage connection
+      storage.ref().child('.test_connection');
+      _logger.i('✅ [FIREBASE] Storage initialized and accessible');
+      _logger.i('✅ [FIREBASE] Storage bucket: ${storage.bucket}');
+    } catch (e) {
+      _logger.e('❌ [FIREBASE] Storage initialization check failed: $e');
+      _logger.w('⚠️  [FIREBASE] Storage uploads may not work properly');
+    }
   }
 
   /// Get current user ID
@@ -42,22 +67,48 @@ class FirebaseService {
   /// Sign in with Google
   static Future<UserCredential?> signInWithGoogle() async {
     try {
-      // Trigger the authentication flow
-      // authenticate() is the standard method in v7.0.0+
-      final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
+      if (kIsWeb) {
+        // Web-specific: Use Firebase Auth popup/redirect
+        final GoogleAuthProvider provider = GoogleAuthProvider();
+        // Using popup for better UX (alternatively use signInWithRedirect)
+        return await auth.signInWithPopup(provider);
+      } else {
+        // Mobile: Use google_sign_in package v7.x authenticate() method
+        final GoogleSignInAccount googleUser = await googleSignIn
+            .authenticate();
 
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+        // Obtain the auth details from the request
+        final GoogleSignInAuthentication googleAuth = googleUser.authentication;
 
-      // Create a new credential
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-      );
+        // Check if we have the required credentials
+        if (googleAuth.idToken == null) {
+          throw Exception(
+            'Failed to get authentication credentials from Google',
+          );
+        }
 
-      // Sign in to Firebase with the OAuth credential
-      return await auth.signInWithCredential(credential);
+        // Create a new credential
+        final OAuthCredential credential = GoogleAuthProvider.credential(
+          idToken: googleAuth.idToken,
+        );
+
+        // Sign in to Firebase with the OAuth credential
+        return await auth.signInWithCredential(credential);
+      }
+    } on FirebaseAuthException catch (e) {
+      // Firebase-specific authentication errors
+      throw Exception('Authentication failed: ${e.message ?? e.code}');
     } catch (e) {
-      rethrow;
+      // Handle user cancellation and other errors
+      // PlatformException with code 'sign_in_canceled' or 'sign_in_failed'
+      if (e.toString().contains('sign_in_canceled') ||
+          e.toString().contains('SIGN_IN_CANCELLED') ||
+          e.toString().contains('canceled')) {
+        // User cancelled - return null gracefully
+        return null;
+      }
+      // Other errors (network, developer config issues, etc.)
+      throw Exception('Sign in failed: ${e.toString()}');
     }
   }
 
@@ -74,6 +125,7 @@ class FirestoreCollections {
   static const String lostPersons = 'lost_persons';
   static const String ghats = 'ghats';
   static const String facilities = 'facilities';
+  static const String facilityRoutes = 'facility_routes';
   static const String emergencyAlerts = 'emergency_alerts';
   static const String settings = 'settings';
 }

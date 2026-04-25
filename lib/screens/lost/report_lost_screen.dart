@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:logger/logger.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/firebase_service.dart';
 import '../../data/models/lost_person.dart';
@@ -8,11 +11,34 @@ import '../../data/repositories/lost_person_repository.dart';
 import '../../widgets/common/primary_button.dart';
 import '../../widgets/common/input_field.dart';
 
-/// Report lost person form screen
+/// Report lost person form screen with optional pre-fill from voice assistant
 class ReportLostScreen extends ConsumerStatefulWidget {
   final bool showBackButton;
 
-  const ReportLostScreen({super.key, this.showBackButton = true});
+  // Pre-fill data from voice assistant
+  final String? preFillName;
+  final int? preFillAge;
+  final String? preFillGender;
+  final String? preFillHeight;
+  final String? preFillClothing;
+  final String? preFillLocation;
+  final String? preFillGuardianName;
+  final String? preFillGuardianPhone;
+  final String? preFillDescription;
+
+  const ReportLostScreen({
+    super.key,
+    this.showBackButton = true,
+    this.preFillName,
+    this.preFillAge,
+    this.preFillGender,
+    this.preFillHeight,
+    this.preFillClothing,
+    this.preFillLocation,
+    this.preFillGuardianName,
+    this.preFillGuardianPhone,
+    this.preFillDescription,
+  });
 
   @override
   ConsumerState<ReportLostScreen> createState() => _ReportLostScreenState();
@@ -32,6 +58,48 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
 
   final _repository = LostPersonRepository();
   final List<String> _genderOptions = ['Male', 'Female', 'Other'];
+  final _logger = Logger();
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill form if data provided from voice assistant
+    if (widget.preFillName != null) {
+      _nameController.text = widget.preFillName!;
+    }
+    if (widget.preFillAge != null) {
+      _ageController.text = widget.preFillAge.toString();
+    }
+    if (widget.preFillLocation != null) {
+      _locationController.text = widget.preFillLocation!;
+    }
+    if (widget.preFillGuardianName != null) {
+      _guardianNameController.text = widget.preFillGuardianName!;
+    }
+    if (widget.preFillGuardianPhone != null) {
+      _guardianPhoneController.text = widget.preFillGuardianPhone!;
+    }
+
+    // Build description from height and clothing if provided
+    final descriptionParts = <String>[];
+    if (widget.preFillHeight != null) {
+      descriptionParts.add('Height: ${widget.preFillHeight}');
+    }
+    if (widget.preFillClothing != null) {
+      descriptionParts.add('Clothing: ${widget.preFillClothing}');
+    }
+    if (widget.preFillDescription != null) {
+      descriptionParts.add(widget.preFillDescription!);
+    }
+    if (descriptionParts.isNotEmpty) {
+      _descriptionController.text = descriptionParts.join('. ');
+    }
+
+    // Set gender if provided
+    if (widget.preFillGender != null) {
+      _selectedGender = widget.preFillGender;
+    }
+  }
 
   @override
   void dispose() {
@@ -84,14 +152,14 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
             : null,
       );
 
-      // Save to Firestore
-      await _repository.reportLostPerson(lostPerson);
+      // Save to Firestore first
+      final docId = await _repository.reportLostPerson(lostPerson);
 
-      // TODO: Upload photo to Firebase Storage if selected
-      // if (_selectedImage != null) {
-      //   final photoUrl = await _uploadPhoto(docId);
-      //   await _repository.updatePhotoUrl(docId, photoUrl);
-      // }
+      // Upload photo to Firebase Storage if selected
+      if (_selectedImage != null) {
+        final photoUrl = await _uploadPhoto(docId);
+        await _repository.updatePhotoUrl(docId, photoUrl);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -118,6 +186,72 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<String> _uploadPhoto(String reportId) async {
+    if (_selectedImage == null) {
+      throw Exception('No image selected');
+    }
+
+    try {
+      _logger.d('📸 [UPLOAD] Starting photo upload for report: $reportId');
+      _logger.d('📸 [UPLOAD] Image path: ${_selectedImage!.path}');
+
+      final storageRef = FirebaseService.storage.ref();
+      final photoRef = storageRef.child(
+        'lost_persons/$reportId/${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      final file = File(_selectedImage!.path);
+      final fileSize = await file.length();
+      _logger.d(
+        '📸 [UPLOAD] File size: ${(fileSize / 1024).toStringAsFixed(2)} KB',
+      );
+
+      // Upload file
+      _logger.d('📸 [UPLOAD] Starting upload task...');
+      final uploadTask = photoRef.putFile(file);
+
+      // Monitor progress
+      uploadTask.snapshotEvents.listen((snapshot) {
+        final progress =
+            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        _logger.d('📸 [UPLOAD] Progress: ${progress.toStringAsFixed(1)}%');
+      });
+
+      // Wait for upload to complete
+      await uploadTask;
+      _logger.i('✅ [UPLOAD] Upload completed successfully');
+
+      // Get download URL
+      final downloadUrl = await photoRef.getDownloadURL();
+      _logger.d('✅ [UPLOAD] Download URL: $downloadUrl');
+
+      return downloadUrl;
+    } on FirebaseException catch (e) {
+      _logger.e('❌ [UPLOAD] Firebase error code: ${e.code}');
+      _logger.e('❌ [UPLOAD] Firebase error message: ${e.message}');
+      _logger.e('❌ [UPLOAD] Full error: ${e.toString()}');
+
+      // Provide user-friendly error messages
+      String userMessage = 'Failed to upload photo';
+      if (e.code == 'storage/unauthorized') {
+        userMessage = 'Permission denied. Please check Firebase Storage rules.';
+      } else if (e.code == 'storage/canceled') {
+        userMessage = 'Upload was canceled.';
+      } else if (e.code == 'storage/quota-exceeded') {
+        userMessage = 'Storage quota exceeded.';
+      } else if (e.code == 'storage/unauthenticated') {
+        userMessage = 'Authentication required to upload photos.';
+      } else if (e.message != null) {
+        userMessage = e.message!;
+      }
+
+      throw Exception(userMessage);
+    } catch (e) {
+      _logger.e('❌ [UPLOAD] Unexpected error: ${e.toString()}');
+      throw Exception('Failed to upload photo: $e');
     }
   }
 
@@ -297,13 +431,14 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(14),
-                                    child: Image.asset(
-                                      _selectedImage!.path,
+                                    child: Image.file(
+                                      File(_selectedImage!.path),
                                       fit: BoxFit.cover,
                                       width: double.infinity,
                                       height: double.infinity,
-                                      errorBuilder: (_, __, ___) =>
-                                          _buildUploadPlaceholder(isDark),
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              _buildUploadPlaceholder(isDark),
                                     ),
                                   ),
                                   Positioned(

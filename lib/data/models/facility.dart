@@ -17,9 +17,12 @@ class Facility {
   final String? closeTime;
   final String? phone;
   final String? address;
-  final String status; // 'approved' or 'pending'
+  final String status; // 'approved' or 'pending' or 'rejected'
   final String? submittedBy;
   final DateTime? submittedAt;
+  final String? rejectionReason;
+  final String? reviewedBy;
+  final DateTime? reviewedAt;
 
   Facility({
     required this.id,
@@ -38,6 +41,9 @@ class Facility {
     this.status = 'approved',
     this.submittedBy,
     this.submittedAt,
+    this.rejectionReason,
+    this.reviewedBy,
+    this.reviewedAt,
   });
 
   factory Facility.fromJson(Map<String, dynamic> json) {
@@ -63,6 +69,11 @@ class Facility {
       submittedAt: json['submittedAt'] != null
           ? (json['submittedAt'] as Timestamp).toDate()
           : null,
+      rejectionReason: json['rejectionReason'] as String?,
+      reviewedBy: json['reviewedBy'] as String?,
+      reviewedAt: json['reviewedAt'] != null
+          ? (json['reviewedAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -86,6 +97,9 @@ class Facility {
       'submittedAt': submittedAt != null
           ? Timestamp.fromDate(submittedAt!)
           : null,
+      'rejectionReason': rejectionReason,
+      'reviewedBy': reviewedBy,
+      'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
     };
   }
 }
