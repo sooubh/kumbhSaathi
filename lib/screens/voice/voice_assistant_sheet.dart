@@ -31,16 +31,8 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
 
   @override
   void dispose() {
+    ref.read(voiceSessionProvider.notifier).disconnect();
     _controller.dispose();
-    // We disconnect when sheet closes to stop mic/socket
-    // Note: Provider is disposed automatically if not kept alive, but explicit disconnect is safer
-    // ref.read(voiceSessionProvider.notifier).disconnect();
-    // Actually, let's let the provider dispose handle it if it's auto-dispose
-    // But if it's not auto-dispose, we should disconnect.
-    // The provider definition was `StateNotifierProvider` (not autoDispose).
-    // So we MUST disconnect manually or it keeps recording.
-    // However, calling ref.read on dispose is sometimes risky.
-    // Better to use `ref.onDispose` inside the provider itself, but here we trigger it.
     super.dispose();
   }
 
@@ -248,8 +240,6 @@ class _VoiceAssistantSheetState extends ConsumerState<VoiceAssistantSheet>
         return 'Gemini Speaking...';
       case VoiceState.error:
         return 'Connection Error';
-      default:
-        return ''; // Case for connecting, etc.
     }
   }
 }

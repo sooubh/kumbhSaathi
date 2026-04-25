@@ -10,7 +10,7 @@ class AIConfig {
   }
 
   static String get wsUrl {
-    return 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=$apiKey';
+    return 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$apiKey';
   }
 
   static bool get useMockMode => apiKey.isEmpty;

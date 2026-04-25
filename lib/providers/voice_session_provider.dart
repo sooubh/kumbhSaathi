@@ -5,6 +5,7 @@ import 'package:logger/logger.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:audio_session/audio_session.dart' as audio_session;
+import 'package:permission_handler/permission_handler.dart';
 import '../core/services/realtime_chat_service.dart';
 import 'auth_provider.dart';
 import 'location_provider.dart';
@@ -31,13 +32,14 @@ class VoiceSessionState {
     VoiceState? status,
     String? text,
     String? errorMessage,
+    bool clearError = false,
     bool? isConnected,
     bool? isSpeakerOn,
   }) {
     return VoiceSessionState(
       status: status ?? this.status,
       text: text ?? this.text,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       isConnected: isConnected ?? this.isConnected,
       isSpeakerOn: isSpeakerOn ?? this.isSpeakerOn,
     );
@@ -66,6 +68,9 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
   final Logger _logger = Logger();
 
   StreamSubscription? _audioSubscription;
+  StreamSubscription? _textSubscription;
+  StreamSubscription? _errorSubscription;
+  StreamSubscription? _connectionSubscription;
   StreamSubscription? _turnCompleteSubscription;
   StreamSubscription? _recorderSubscription;
 
@@ -145,9 +150,18 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
   /// Initialize and Connect
   Future<void> connect() async {
     try {
+      // Avoid duplicate subscriptions when reconnecting from retry button.
+      await _recorderSubscription?.cancel();
+      await _audioSubscription?.cancel();
+      await _textSubscription?.cancel();
+      await _errorSubscription?.cancel();
+      await _connectionSubscription?.cancel();
+      await _turnCompleteSubscription?.cancel();
+
       state = state.copyWith(
         status: VoiceState.connecting,
         text: 'Connecting to Gemini...',
+        clearError: true,
       );
 
       _audioQueue.clear();
@@ -157,10 +171,17 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
       await _configureAudioSession();
 
       // 1. Permissions are checked in UI, but good to be safe
-      if (!await _audioRecorder.hasPermission()) {
+      var hasMicPermission = await _audioRecorder.hasPermission();
+      if (!hasMicPermission) {
+        final requested = await Permission.microphone.request();
+        hasMicPermission = requested.isGranted;
+      }
+
+      if (!hasMicPermission) {
         state = state.copyWith(
           status: VoiceState.error,
-          errorMessage: 'Microphone permission denied',
+          errorMessage:
+              'Microphone permission denied. Please allow microphone access in app settings.',
         );
         return;
       }
@@ -181,7 +202,37 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
         _bufferAudio(audioBytes);
       });
 
-      // 4. Listen to Turn Complete
+      // 4. Listen to text stream for transcript/status feedback
+      _textSubscription = _realtimeService.textStream.listen((text) {
+        final cleaned = text.trim();
+        if (cleaned.isNotEmpty) {
+          state = state.copyWith(text: cleaned);
+        }
+      });
+
+      // 5. Listen to transport/server errors
+      _errorSubscription = _realtimeService.errorStream.listen((message) {
+        state = state.copyWith(
+          status: VoiceState.error,
+          isConnected: false,
+          errorMessage: message,
+        );
+      });
+
+      // 6. Track socket state so UI does not stay in stale Listening mode.
+      _connectionSubscription = _realtimeService.connectionStream.listen((
+        connected,
+      ) {
+        if (!connected && state.status != VoiceState.error) {
+          state = state.copyWith(
+            status: VoiceState.error,
+            isConnected: false,
+            errorMessage: 'Voice connection dropped. Please tap Retry.',
+          );
+        }
+      });
+
+      // 7. Listen to Turn Complete
       _turnCompleteSubscription = _realtimeService.turnCompleteStream.listen((
         _,
       ) {
@@ -189,13 +240,14 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
         _flushAudioBuffer();
       });
 
-      // 5. Start Recording & Streaming
+      // 8. Start Recording & Streaming
       await _startRecordingStream();
 
       state = state.copyWith(
         status: VoiceState.listening,
         isConnected: true,
         text: 'Listening...',
+        clearError: true,
       );
     } catch (e) {
       _logger.e('Init Error: $e');
@@ -227,7 +279,7 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
 
       _recorderSubscription = stream.listen((data) {
         // Send data to WebSocket
-        if (state.isConnected) {
+        if (_realtimeService.isConnected) {
           _realtimeService.sendAudioChunk(data);
         }
       });
@@ -238,6 +290,10 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
       await _configureAudioSession();
     } catch (e) {
       _logger.e('Error starting stream: $e');
+      state = state.copyWith(
+        status: VoiceState.error,
+        errorMessage: 'Could not start microphone stream: $e',
+      );
     }
   }
 
@@ -349,13 +405,27 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
   }
 
   Future<void> disconnect() async {
-    _recorderSubscription?.cancel();
-    _audioSubscription?.cancel();
-    _turnCompleteSubscription?.cancel();
+    await _recorderSubscription?.cancel();
+    await _audioSubscription?.cancel();
+    await _textSubscription?.cancel();
+    await _errorSubscription?.cancel();
+    await _connectionSubscription?.cancel();
+    await _turnCompleteSubscription?.cancel();
+
     _realtimeService.disconnect();
-    await _audioRecorder.stop();
-    await _audioPlayer.stop();
+
+    try {
+      if (await _audioRecorder.isRecording()) {
+        await _audioRecorder.stop();
+      }
+    } catch (_) {}
+
+    try {
+      await _audioPlayer.stop();
+    } catch (_) {}
+
     _audioQueue.clear();
+    _currentAudioBuffer.clear();
     _isPlaying = false;
     state = VoiceSessionState(isConnected: false);
   }

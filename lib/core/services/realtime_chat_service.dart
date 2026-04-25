@@ -9,6 +9,9 @@ import '../config/ai_config.dart';
 /// Uses WebSocket for bidirectional communication (Audio Streaming)
 class RealtimeChatService {
   final _logger = Logger();
+  static const String _liveModel =
+      'models/gemini-2.5-flash-native-audio-preview-12-2025';
+
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
 
@@ -24,6 +27,18 @@ class RealtimeChatService {
   final _turnCompleteController = StreamController<void>.broadcast();
   Stream<void> get turnCompleteStream => _turnCompleteController.stream;
 
+  // Stream for protocol/runtime errors surfaced to UI/provider
+  final _errorController = StreamController<String>.broadcast();
+  Stream<String> get errorStream => _errorController.stream;
+
+  // Stream for socket lifecycle (true=connected, false=disconnected)
+  final _connectionController = StreamController<bool>.broadcast();
+  Stream<bool> get connectionStream => _connectionController.stream;
+
+  final _setupCompleteController = StreamController<void>.broadcast();
+  Stream<void> get setupCompleteStream => _setupCompleteController.stream;
+  Completer<void>? _setupCompleter;
+
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
@@ -36,6 +51,10 @@ class RealtimeChatService {
   }) async {
     if (_isConnected) return;
 
+    if (AIConfig.apiKey.isEmpty) {
+      throw Exception('Gemini API key is missing. Please configure GEMINI_API_KEY in .env');
+    }
+
     try {
       final wsUrl = AIConfig.wsUrl;
       _logger.d('🔌 Connecting to Gemini Realtime: $wsUrl');
@@ -43,6 +62,8 @@ class RealtimeChatService {
       // 1. Establish WebSocket Connection
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _isConnected = true;
+      _connectionController.add(true);
+      _setupCompleter = Completer<void>();
 
       // 2. Listen for messages
       _subscription = _channel!.stream.listen(
@@ -51,12 +72,20 @@ class RealtimeChatService {
         },
         onError: (error) {
           _logger.e('❌ WebSocket Error: $error');
-          _isConnected = false;
-          disconnect();
+          _failSetupIfPending('Realtime connection error: $error');
+          disconnect(errorMessage: 'Realtime connection error: $error');
         },
         onDone: () {
-          _logger.d('🔌 WebSocket Connection Closed');
-          disconnect();
+          final closeCode = _channel?.closeCode;
+          final closeReason = _channel?.closeReason;
+          _logger.d('🔌 WebSocket Connection Closed (code=$closeCode, reason=$closeReason)');
+          _failSetupIfPending(
+            'Realtime setup failed (code: ${closeCode ?? 'unknown'}): ${closeReason ?? 'Connection closed'}',
+          );
+          disconnect(
+            errorMessage:
+                'Realtime connection closed (code: ${closeCode ?? 'unknown'}): ${closeReason ?? 'Please retry'}',
+          );
         },
       );
 
@@ -67,31 +96,58 @@ class RealtimeChatService {
         appLanguage: appLanguage,
         responseModalities: responseModalities,
       );
+
+      // 4. Wait for setupComplete before streaming audio.
+      await _setupCompleter!.future.timeout(
+        const Duration(seconds: 12),
+        onTimeout: () {
+          throw TimeoutException('Timed out waiting for setupComplete from Live API.');
+        },
+      );
     } catch (e) {
       _logger.e('❌ Connection Failed: $e');
       _isConnected = false;
+      _connectionController.add(false);
+      _setupCompleter = null;
       rethrow;
     }
   }
 
+  void _failSetupIfPending(String message) {
+    if (_setupCompleter != null && !_setupCompleter!.isCompleted) {
+      _setupCompleter!.completeError(Exception(message));
+    }
+    _setupCompleter = null;
+  }
+
   /// Disconnect and cleanup
-  void disconnect() {
+  void disconnect({String? errorMessage}) {
+    final wasConnected = _isConnected;
+
     _isConnected = false;
+    _failSetupIfPending(errorMessage ?? 'Disconnected');
     _subscription?.cancel();
     _channel?.sink.close();
     _channel = null;
     _subscription = null;
+
+    if (errorMessage != null && errorMessage.isNotEmpty) {
+      _errorController.add(errorMessage);
+    }
+    if (wasConnected) {
+      _connectionController.add(false);
+    }
   }
 
   /// Send user AUDIO chunk to the model
   void sendAudioChunk(Uint8List audioData) {
     if (!_isConnected || _channel == null) return;
 
+    final encoded = base64Encode(audioData);
+
     final message = {
-      'realtime_input': {
-        'media_chunks': [
-          {'mime_type': 'audio/pcm', 'data': base64Encode(audioData)},
-        ],
+      'realtimeInput': {
+        'audio': {'mimeType': 'audio/pcm;rate=16000', 'data': encoded},
       },
     };
 
@@ -103,16 +159,8 @@ class RealtimeChatService {
     if (!_isConnected || _channel == null) return;
 
     final message = {
-      'client_content': {
-        'turns': [
-          {
-            'role': 'user',
-            'parts': [
-              {'text': text},
-            ],
-          },
-        ],
-        'turn_complete': true,
+      'realtimeInput': {
+        'text': text,
       },
     };
 
@@ -135,18 +183,43 @@ class RealtimeChatService {
         return;
       }
 
-      // 1. Handle server_content
-      if (json.containsKey('serverContent')) {
-        final serverContent = json['serverContent'];
+      if (json.containsKey('setupComplete')) {
+        _logger.d('✅ Live setup complete');
+        _setupCompleteController.add(null);
+        if (_setupCompleter != null && !_setupCompleter!.isCompleted) {
+          _setupCompleter!.complete();
+        }
+        _setupCompleter = null;
+        return;
+      }
+
+      // 1. Handle server content (support both camelCase and snake_case)
+      final dynamic serverContent = json['serverContent'] ?? json['server_content'];
+      if (serverContent != null) {
+
+        final inputTranscriptionText =
+            serverContent['inputTranscription']?['text'] as String?;
+        if (inputTranscriptionText != null && inputTranscriptionText.trim().isNotEmpty) {
+          _textController.add(inputTranscriptionText.trim());
+        }
+
+        final outputTranscriptionText =
+            serverContent['outputTranscription']?['text'] as String?;
+        if (outputTranscriptionText != null && outputTranscriptionText.trim().isNotEmpty) {
+          _textController.add(outputTranscriptionText.trim());
+        }
 
         // A. Model Turn
-        if (serverContent.containsKey('modelTurn')) {
-          final parts = serverContent['modelTurn']['parts'] as List;
+        final dynamic modelTurn =
+            serverContent['modelTurn'] ?? serverContent['model_turn'];
+        if (modelTurn != null) {
+          final parts = (modelTurn['parts'] as List?) ?? const [];
           for (final part in parts) {
             // Handle Audio
-            if (part.containsKey('inlineData')) {
-              final mimeType = part['inlineData']['mimeType'];
-              final dataBase64 = part['inlineData']['data'];
+            final dynamic inlineData = part['inlineData'] ?? part['inline_data'];
+            if (inlineData != null) {
+              final mimeType = inlineData['mimeType'] ?? inlineData['mime_type'];
+              final dataBase64 = inlineData['data'];
 
               if (mimeType.toString().startsWith('audio/')) {
                 final bytes = base64Decode(dataBase64);
@@ -164,29 +237,36 @@ class RealtimeChatService {
         }
 
         // B. Turn Complete
-        if (serverContent.containsKey('turnComplete')) {
+        if ((serverContent['turnComplete'] ?? serverContent['turn_complete']) ==
+            true) {
           // Logic for end of turn (signal to flush buffer if needed)
           _turnCompleteController.add(null);
         }
 
         // C. Interruption (User spoke while AI was speaking)
-        if (serverContent.containsKey('interrupted')) {
+        if ((serverContent['interrupted'] ?? serverContent['is_interrupted']) ==
+            true) {
           _logger.d('🛑 AI Interrupted');
           // You might want to clear local audio buffers here
           // We will handle this in the provider
         }
       }
       // 2. Handle tool_call (Future Implementation)
-      else if (json.containsKey('toolCall')) {
-        _logger.d('🛠️ Tool Call Received: ${json['toolCall']}');
+      else if (json.containsKey('toolCall') || json.containsKey('tool_call')) {
+        _logger.d('🛠️ Tool Call Received: ${json['toolCall'] ?? json['tool_call']}');
       }
       // 3. Handle error
       else if (json.containsKey('error')) {
         final error = json['error'];
-        _logger.e('❌ Server Error: ${error['message']}');
+        final message = error is Map ? '${error['message'] ?? 'Unknown server error'}' : '$error';
+        _logger.e('❌ Server Error: $message');
+        _failSetupIfPending(message);
+        _errorController.add(message);
       }
     } catch (e) {
       _logger.e('⚠️ Error parsing message: $e');
+      _failSetupIfPending('Failed to parse realtime response: $e');
+      _errorController.add('Failed to parse realtime response: $e');
     }
   }
 
@@ -207,19 +287,12 @@ class RealtimeChatService {
 
     final setup = {
       'setup': {
-        'model': 'models/gemini-2.0-flash-exp',
-        'generation_config': {
-          'response_modalities': responseModalities, // Dynamic modalities
-          'speech_config': {
-            'voice_config': {
-              'prebuilt_voice_config': {
-                'voice_name':
-                    'Aoede', // 'Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede'
-              },
-            },
-          },
+        'model': _liveModel,
+        'generationConfig': {
+          'responseModalities': responseModalities,
         },
-        'system_instruction': {
+
+        'systemInstruction': {
           'parts': [
             {'text': systemPrompt},
           ],
