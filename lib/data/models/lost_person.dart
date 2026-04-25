@@ -16,6 +16,8 @@ class LostPerson {
   final DateTime reportedAt;
   final String reportedBy;
   final LostPersonStatus status;
+  final String? lastSeenAddress;
+  final String? source; // 'manual' or 'live_location'
 
   LostPerson({
     required this.id,
@@ -34,6 +36,8 @@ class LostPerson {
     required this.reportedAt,
     this.reportedBy = 'anonymous',
     this.status = LostPersonStatus.missing,
+    this.lastSeenAddress,
+    this.source = 'manual',
   });
 
   factory LostPerson.fromJson(Map<String, dynamic> json) {
@@ -57,6 +61,8 @@ class LostPerson {
         (e) => e.name == json['status'],
         orElse: () => LostPersonStatus.missing,
       ),
+      lastSeenAddress: json['lastSeenAddress'] as String?,
+      source: json['source'] as String? ?? 'manual',
     );
   }
 
@@ -78,6 +84,8 @@ class LostPerson {
       'reportedAt': reportedAt.toIso8601String(),
       'reportedBy': reportedBy,
       'status': status.name,
+      'lastSeenAddress': lastSeenAddress,
+      'source': source,
     };
   }
 
@@ -116,6 +124,8 @@ class LostPerson {
       reportedAt: reportedAt ?? this.reportedAt,
       reportedBy: reportedBy ?? this.reportedBy,
       status: status ?? this.status,
+      lastSeenAddress: lastSeenAddress ?? this.lastSeenAddress,
+      source: source ?? this.source,
     );
   }
 }

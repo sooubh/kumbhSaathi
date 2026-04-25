@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/facility.dart';
+import '../models/verification_request.dart';
 import '../../core/services/firebase_service.dart';
 
 /// Repository for facilities data
@@ -88,15 +89,88 @@ class FacilityRepository {
   /// Add a new facility (pending by default)
   Future<void> addFacility(Facility facility) async {
     try {
+      final now = DateTime.now();
       final data = facility.toJson();
       data.remove('id');
       data['status'] = 'pending';
-      data['submittedAt'] = Timestamp.now();
+      data['submittedAt'] = Timestamp.fromDate(now);
+      data['lastVerifiedAt'] = Timestamp.fromDate(now);
+      data['nextVerificationDue'] = Timestamp.fromDate(now.add(const Duration(days: 7)));
 
       await _firestore.collection(FirestoreCollections.facilities).add(data);
     } catch (e) {
       throw Exception('Failed to add facility: $e');
     }
+  }
+
+  /// Verify a facility to extend its life by 7 days
+  Future<void> verifyFacility(String id) async {
+    try {
+      final now = DateTime.now();
+      await _firestore
+          .collection(FirestoreCollections.facilities)
+          .doc(id)
+          .update({
+            'lastVerifiedAt': Timestamp.fromDate(now),
+            'nextVerificationDue': Timestamp.fromDate(now.add(const Duration(days: 7))),
+          });
+    } catch (e) {
+      throw Exception('Failed to verify facility: $e');
+    }
+  }
+
+  /// Cleanup facilities that haven't been verified for 7 days
+  Future<void> cleanupExpiredFacilities() async {
+    try {
+      final now = Timestamp.now();
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.facilities)
+          .where('nextVerificationDue', isLessThan: now)
+          .get();
+
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      if (snapshot.docs.isNotEmpty) {
+        await batch.commit();
+      }
+    } catch (e) {
+      // Silently fail cleanup errors
+    }
+  }
+
+  /// Upload verification image to storage
+  Future<String> uploadVerificationImage(File file, String facilityId) async {
+    try {
+      final fileName = 'verification_${DateTime.now().millisecondsSinceEpoch}_$facilityId.jpg';
+      final ref = _storage.ref().child('verifications/$fileName');
+      await ref.putFile(file);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      throw Exception('Failed to upload verification image: $e');
+    }
+  }
+
+  /// Submit a verification request for admin review
+  Future<void> submitVerificationRequest(VerificationRequest request) async {
+    try {
+      final data = request.toJson();
+      await _firestore.collection(FirestoreCollections.verificationRequests).add(data);
+    } catch (e) {
+      throw Exception('Failed to submit verification request: $e');
+    }
+  }
+
+  /// Check if a facility has a pending verification request
+  Stream<bool> hasPendingVerification(String facilityId, String userId) {
+    return _firestore
+        .collection(FirestoreCollections.verificationRequests)
+        .where('facilityId', isEqualTo: facilityId)
+        .where('submittedBy', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.isNotEmpty);
   }
 
   /// Approve a facility

@@ -239,44 +239,6 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
         // The Map
         _buildMapBase(context, isDark, ghatsAsync, facilitiesAsync, lostPersonsAsync),
 
-        // Crowd Labels (Only visible when viewing Ghats or All)
-        if (_mapCategory == 'Ghats' || _mapCategory == 'All')
-          ghatsAsync.when(
-            loading: () => const SizedBox(),
-            error: (error, stackTrace) => const SizedBox(),
-            data: (ghats) {
-              final List<Ghat> filteredGhats = _filterGhats(ghats);
-              final highCrowd = filteredGhats
-                  .where((g) => g.crowdLevel == CrowdLevel.high)
-                  .length;
-              final lowCrowd = filteredGhats
-                  .where((g) => g.crowdLevel == CrowdLevel.low)
-                  .length;
-              return Stack(
-                children: [
-                  if (highCrowd > 0)
-                    Positioned(
-                      top: 140, // Below header
-                      left: 16,
-                      child: _buildCrowdLabel(
-                        '$highCrowd HIGH CROWD',
-                        AppColors.emergency,
-                      ),
-                    ),
-                  if (lowCrowd > 0)
-                    Positioned(
-                      top: 140,
-                      right: 16,
-                      child: _buildCrowdLabel(
-                        '$lowCrowd LOW CROWD',
-                        AppColors.success,
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-
         // Map Controls
         Positioned(
           right: 16,
@@ -905,93 +867,129 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: (isDark ? AppColors.cardDark : Colors.white)
-                        .withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: PopupMenuButton<dynamic>(
-                    tooltip: 'Explore and Filter',
-                    onSelected: (action) {
-                      setState(() {
-                        if (action is String) {
-                          _mapCategory = action;
+                MenuAnchor(
+                  builder: (context, controller, child) {
+                    return GestureDetector(
+                      onTap: () {
+                        if (controller.isOpen) {
+                          controller.close();
+                        } else {
+                          controller.open();
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: (isDark ? AppColors.cardDark : Colors.white).withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _mapCategory == 'All'
+                                  ? Icons.map
+                                  : (_mapCategory == 'Ghats'
+                                      ? Icons.water
+                                      : (_mapCategory == 'Facilities'
+                                          ? Icons.place
+                                          : Icons.person_search)),
+                              color: AppColors.primaryBlue,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _mapCategory,
+                              style: const TextStyle(
+                                color: AppColors.primaryBlue,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Icon(Icons.arrow_drop_down, color: AppColors.primaryBlue, size: 16),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                  menuChildren: [
+                    // --- ALL ---
+                    MenuItemButton(
+                      onPressed: () {
+                        setState(() {
+                          _mapCategory = 'All';
                           _selectedFilter = 'All Ghats';
                           _selectedFacilityType = null;
-                        } else if (action is Map<String, dynamic>) {
-                          _mapCategory = action['category'];
-                          if (action.containsKey('filter')) {
-                            _selectedFilter = action['filter'];
-                          }
-                          if (action.containsKey('facilityType')) {
-                            _selectedFacilityType = action['facilityType'];
-                          }
-                        }
-                      });
-                    },
-                    icon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _mapCategory == 'All'
-                              ? Icons.map
-                              : (_mapCategory == 'Ghats'
-                                  ? Icons.water
-                                  : (_mapCategory == 'Facilities'
-                                      ? Icons.place
-                                      : Icons.person_search)),
-                          color: AppColors.primaryBlue,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _mapCategory,
-                          style: const TextStyle(
-                            color: AppColors.primaryBlue,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Icon(Icons.arrow_drop_down,
-                            color: AppColors.primaryBlue, size: 16),
-                      ],
+                        });
+                      },
+                      child: _buildMenuItem('All', Icons.map, 'All', true),
                     ),
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'All',
-                        child: _buildMenuItem('All', Icons.map, 'All', true),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'Ghats',
-                        child: _buildMenuItem('Ghats', Icons.water, 'Ghats', true),
-                      ),
-                      ..._filters
-                          .where((f) => f != 'All Ghats')
-                          .map((filter) => PopupMenuItem(
-                                value: {'category': 'Ghats', 'filter': filter},
-                                child: _buildSubMenuItem(filter,
-                                    _mapCategory == 'Ghats' && _selectedFilter == filter),
-                              )),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'Facilities',
-                        child:
-                            _buildMenuItem('Facilities', Icons.place, 'Facilities', true),
-                      ),
-                      ...FacilityType.values.map((type) => PopupMenuItem(
-                            value: {'category': 'Facilities', 'facilityType': type},
-                            child: _buildSubMenuItem(type.displayName,
-                                _mapCategory == 'Facilities' && _selectedFacilityType == type),
-                          )),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'Lost Persons',
-                        child: _buildMenuItem(
-                            'Lost Persons', Icons.person_search, 'Lost Persons', true),
-                      ),
-                    ],
-                  ),
+
+                    // --- GHATS ---
+                    SubmenuButton(
+                      menuChildren: [
+                        MenuItemButton(
+                          onPressed: () {
+                            setState(() {
+                              _mapCategory = 'Ghats';
+                              _selectedFilter = 'All Ghats';
+                              _selectedFacilityType = null;
+                            });
+                          },
+                          child: _buildSubMenuItem('All Ghats', _mapCategory == 'Ghats' && _selectedFilter == 'All Ghats'),
+                        ),
+                        ..._filters.where((f) => f != 'All Ghats').map((filter) => MenuItemButton(
+                          onPressed: () {
+                            setState(() {
+                              _mapCategory = 'Ghats';
+                              _selectedFilter = filter;
+                              _selectedFacilityType = null;
+                            });
+                          },
+                          child: _buildSubMenuItem(filter, _mapCategory == 'Ghats' && _selectedFilter == filter),
+                        )),
+                      ],
+                      child: _buildMenuItem('Ghats', Icons.water, 'Ghats', true),
+                    ),
+
+                    // --- FACILITIES ---
+                    SubmenuButton(
+                      menuChildren: [
+                        MenuItemButton(
+                          onPressed: () {
+                            setState(() {
+                              _mapCategory = 'Facilities';
+                              _selectedFilter = 'All Ghats';
+                              _selectedFacilityType = null;
+                            });
+                          },
+                          child: _buildSubMenuItem('All Facilities', _mapCategory == 'Facilities' && _selectedFacilityType == null),
+                        ),
+                        ...FacilityType.values.map((type) => MenuItemButton(
+                          onPressed: () {
+                            setState(() {
+                              _mapCategory = 'Facilities';
+                              _selectedFilter = 'All Ghats';
+                              _selectedFacilityType = type;
+                            });
+                          },
+                          child: _buildSubMenuItem(type.displayName, _mapCategory == 'Facilities' && _selectedFacilityType == type),
+                        )),
+                      ],
+                      child: _buildMenuItem('Facilities', Icons.place, 'Facilities', true),
+                    ),
+
+                    // --- LOST PERSONS ---
+                    MenuItemButton(
+                      onPressed: () {
+                        setState(() {
+                          _mapCategory = 'Lost Persons';
+                          _selectedFilter = 'All Ghats';
+                          _selectedFacilityType = null;
+                        });
+                      },
+                      child: _buildMenuItem('Lost Persons', Icons.person_search, 'Lost Persons', true),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1303,43 +1301,6 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
     ref.read(routingProvider.notifier).calculateRoute();
   }
 
-  Widget _buildCrowdLabel(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 8),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   List<PopupMenuEntry<String>> _buildPanchavatiGhatsMenu() {
     final ghatNames = {
       'someshwar_ghat': '1. Someshwar Ghat',
@@ -1471,50 +1432,6 @@ class _GhatNavigationScreenState extends ConsumerState<GhatNavigationScreen> {
                   : (isDark ? AppColors.textDarkDark : AppColors.textDarkLight),
               size: 20,
             ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        // Zoom controls
-        Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark ? AppColors.borderDark : const Color(0xFFE5E7EB),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 12,
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.add,
-                  color: isDark
-                      ? AppColors.textDarkDark
-                      : AppColors.textDarkLight,
-                ),
-                onPressed: () => ref.read(mapProvider.notifier).zoomIn(),
-              ),
-              Container(
-                height: 1,
-                width: 24,
-                color: isDark ? AppColors.borderDark : const Color(0xFFE5E7EB),
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.remove,
-                  color: isDark
-                      ? AppColors.textDarkDark
-                      : AppColors.textDarkLight,
-                ),
-                onPressed: () => ref.read(mapProvider.notifier).zoomOut(),
-              ),
-            ],
           ),
         ),
       ],

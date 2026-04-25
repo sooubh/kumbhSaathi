@@ -9,7 +9,7 @@ class InputField extends StatelessWidget {
   final bool obscureText;
   final int maxLines;
   final IconData? prefixIcon;
-  final IconData? suffixIcon;
+  final Widget? suffixIcon;
   final VoidCallback? onSuffixTap;
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
@@ -63,9 +63,7 @@ class InputField extends StatelessWidget {
             prefixIcon: prefixIcon != null
                 ? Icon(prefixIcon, color: theme.colorScheme.primary)
                 : null,
-            suffixIcon: suffixIcon != null
-                ? IconButton(icon: Icon(suffixIcon), onPressed: onSuffixTap)
-                : null,
+            suffixIcon: suffixIcon,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,

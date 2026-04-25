@@ -32,6 +32,7 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
   Position? _currentPosition;
   LatLng? _selectedLocation;
   String? _selectedAddress;
+  Position? _reporterPosition;
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
 
@@ -41,17 +42,51 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
     _getCurrentLocation();
   }
 
-  Future<void> _getCurrentLocation() async {
+  Future<void> _getCurrentLocation({bool showFeedback = false}) async {
+    if (showFeedback) {
+      setState(() => _isLoading = true);
+    }
+    
     try {
-      final position = await Geolocator.getCurrentPosition();
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw 'Location permissions denied';
+        }
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+        timeLimit: const Duration(seconds: 10),
+      );
+      
       setState(() {
         _currentPosition = position;
-        // Auto-set as selected location
-        _selectedLocation = LatLng(position.latitude, position.longitude);
+        _reporterPosition = position; // Capture read-only reporter location
+        
+        // Only auto-set if not already manually selected
+        if (_selectedLocation == null) {
+          _selectedLocation = LatLng(position.latitude, position.longitude);
+        }
       });
+
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Live location synced successfully')),
+        );
+      }
     } catch (e) {
-      // Handle location error silently or show snackbar
+      if (showFeedback && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('GPS Error: $e')),
+        );
+      }
       debugPrint('Location error: $e');
+    } finally {
+      if (showFeedback && mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -76,6 +111,13 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
   }
 
   Future<void> _openMapSelector() async {
+    // Attempt to get fresh location if we don't have one or if requested
+    if (_selectedLocation == null) {
+      await _getCurrentLocation(showFeedback: true);
+    }
+
+    if (!mounted) return;
+
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
@@ -139,6 +181,9 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
         submittedBy: user?.uid,
         submittedAt: DateTime.now(),
         imageUrl: imageUrl,
+        reporterLatitude: _reporterPosition?.latitude,
+        reporterLongitude: _reporterPosition?.longitude,
+        reporterAccuracy: _reporterPosition?.accuracy,
       );
 
       await _repository.addFacility(facility);
@@ -312,17 +357,43 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
               const SizedBox(height: 32),
 
               // Map Location Selector Button
-              OutlinedButton.icon(
-                onPressed: _openMapSelector,
-                icon: const Icon(Icons.map),
-                label: const Text('SELECT EXACT LOCATION ON MAP'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: AppColors.primaryBlue),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              Column(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _openMapSelector,
+                    icon: const Icon(Icons.my_location),
+                    label: const Text('SELECT EXACT LOCATION ON MAP'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(color: AppColors.primaryBlue),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
-                ),
+                  if (_currentPosition != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: GestureDetector(
+                        onTap: () => _getCurrentLocation(showFeedback: true),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.refresh, size: 14, color: AppColors.primaryBlue),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Sync Live GPS (Accuracy: ${_currentPosition?.accuracy.toStringAsFixed(1)}m)',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 16),
 
@@ -387,6 +458,26 @@ class _AddFacilityScreenState extends ConsumerState<AddFacilityScreen> {
                         child: Text(
                           'Tap the button above to place marker on map',
                           style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Reporter Location Verified Status (Read-only)
+              if (_reporterPosition != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.verified_user, size: 14, color: Colors.blue),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Your live GPS location captured for admin verification',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blue.withValues(alpha: 0.8),
                         ),
                       ),
                     ],

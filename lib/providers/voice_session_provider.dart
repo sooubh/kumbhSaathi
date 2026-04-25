@@ -265,7 +265,7 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
     final stream = await _audioRecorder.startStream(
       const RecordConfig(
         encoder: AudioEncoder.pcm16bits,
-        sampleRate: 16000,
+        sampleRate: 24000,
         numChannels: 1,
       ),
     );

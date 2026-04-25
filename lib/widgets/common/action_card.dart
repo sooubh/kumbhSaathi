@@ -125,6 +125,8 @@ class ActionCard extends StatelessWidget {
                     : AppColors.textDarkLight,
               ),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

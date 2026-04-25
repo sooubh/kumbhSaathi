@@ -9,7 +9,7 @@ import '../config/ai_config.dart';
 /// Uses WebSocket for bidirectional communication (Audio Streaming)
 class RealtimeChatService {
   final _logger = Logger();
-  static const String _liveModel = 'models/gemini-2.5-flash';
+  static const String _liveModel = AIConfig.modelName;
 
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
@@ -50,7 +50,7 @@ class RealtimeChatService {
     dynamic userProfile,
     dynamic location,
     String? appLanguage,
-    List<String> responseModalities = const ['AUDIO'],
+    List<String> responseModalities = const ['AUDIO', 'TEXT'],
   }) async {
     if (_isConnected) return;
 
@@ -61,6 +61,7 @@ class RealtimeChatService {
     try {
       final wsUrl = AIConfig.wsUrl;
       _logger.d('🔌 Connecting to Gemini Realtime: $wsUrl');
+      _logger.d('🤖 Model: $_liveModel');
 
       // 1. Establish WebSocket Connection
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
@@ -145,28 +146,25 @@ class RealtimeChatService {
   /// Send user AUDIO chunk to the model
   void sendAudioChunk(Uint8List audioData) {
     if (!_isConnected || _channel == null) return;
-
     final encoded = base64Encode(audioData);
-
     final message = {
-      'realtimeInput': {
-        'audio': {'mimeType': 'audio/pcm;rate=16000', 'data': encoded},
+      'realtime_input': {
+        'media_chunks': [
+          {'mime_type': 'audio/pcm;rate=24000', 'data': encoded}
+        ],
       },
     };
-
     _channel!.sink.add(jsonEncode(message));
   }
 
   /// Send user text input to the model (if needed)
   void sendTextMessage(String text) {
     if (!_isConnected || _channel == null) return;
-
     final message = {
-      'realtimeInput': {
+      'realtime_input': {
         'text': text,
       },
     };
-
     _channel!.sink.add(jsonEncode(message));
   }
 
@@ -186,7 +184,7 @@ class RealtimeChatService {
         return;
       }
 
-      if (json.containsKey('setupComplete')) {
+      if (json.containsKey('setupComplete') || json.containsKey('setup_complete')) {
         _logger.d('✅ Live setup complete');
         _setupCompleteController.add(null);
         if (_setupCompleter != null && !_setupCompleter!.isCompleted) {
@@ -253,7 +251,17 @@ class RealtimeChatService {
           _interruptedController.add(null);
         }
       }
-      // 2. Handle tool_call (Future Implementation)
+      // 2. Handle audio_content (direct binary audio)
+      final dynamic audioContent = json['audio_content'] ?? json['audioContent'];
+      if (audioContent != null) {
+        final dataBase64 = audioContent['data'];
+        if (dataBase64 != null) {
+          final bytes = base64Decode(dataBase64);
+          _audioController.add(bytes);
+        }
+      }
+
+      // 3. Handle tool_call (Future Implementation)
       else if (json.containsKey('toolCall') || json.containsKey('tool_call')) {
         _logger.d('🛠️ Tool Call Received: ${json['toolCall'] ?? json['tool_call']}');
       }
@@ -277,7 +285,7 @@ class RealtimeChatService {
     dynamic userProfile,
     dynamic location,
     String? appLanguage,
-    List<String> responseModalities = const ['AUDIO'],
+    List<String> responseModalities = const ['AUDIO', 'TEXT'],
   }) {
     if (_channel == null) return;
 
@@ -290,11 +298,10 @@ class RealtimeChatService {
     final setup = {
       'setup': {
         'model': _liveModel,
-        'generationConfig': {
-          'responseModalities': responseModalities,
+        'generation_config': {
+          'response_modalities': ['AUDIO', 'TEXT'],
         },
-
-        'systemInstruction': {
+        'system_instruction': {
           'parts': [
             {'text': systemPrompt},
           ],

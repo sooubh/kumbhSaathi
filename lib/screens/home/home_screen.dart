@@ -18,6 +18,7 @@ import '../profile/profile_screen.dart';
 import '../settings/settings_screen.dart';
 import '../facilities/add_facility_screen.dart';
 import '../facilities/facility_detail_sheet.dart';
+import '../settings/my_submitted_facilities_screen.dart';
 import '../../core/services/firebase_service.dart';
 
 /// Home screen / Dashboard
@@ -234,7 +235,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       crossAxisSpacing: 16,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 0.9,
+      childAspectRatio: 0.82,
       children: [
         ActionCard(
           title: 'Voice Help',
@@ -270,7 +271,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: 'Add Place',
             icon: Icons.add_location_alt,
             iconColor: Colors.orange,
-            onTap: () => _navigateTo(context, const AddFacilityScreen()),
+            onTap: () => _showAddPlaceMenu(context),
           ),
       ],
     );
@@ -517,6 +518,120 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ? Colors.white
                 : (isDark ? AppColors.textDarkDark : AppColors.textDarkLight),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddPlaceMenu(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.cardDark : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.borderDark : const Color(0xFFE5E7EB),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Manage Places',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: isDark ? AppColors.textDarkDark : AppColors.textDarkLight,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildMenuOption(
+              context,
+              title: 'Add New Spot',
+              icon: Icons.add_location_alt_rounded,
+              color: Colors.orange,
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(context, const AddFacilityScreen());
+              },
+              isDark: isDark,
+            ),
+            const SizedBox(height: 16),
+            _buildMenuOption(
+              context,
+              title: 'Saved Spots',
+              icon: Icons.bookmark_rounded,
+              color: AppColors.primaryBlue,
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(context, const MySubmittedFacilitiesScreen());
+              },
+              isDark: isDark,
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuOption(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.cardSecondaryDark : const Color(0xFFF3F4F6),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? AppColors.borderDark : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.textDarkDark : AppColors.textDarkLight,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+            ),
+          ],
         ),
       ),
     );

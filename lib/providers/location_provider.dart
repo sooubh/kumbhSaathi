@@ -89,17 +89,30 @@ class LocationNotifier extends StateNotifier<LocationState> {
     }
 
     try {
+      // 1. Try to get last known position first (instant)
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        state = state.copyWith(currentPosition: lastKnown, isLoading: false);
+      }
+
+      // 2. Get fresh high-accuracy position in background
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.bestForNavigation,
+          timeLimit: Duration(seconds: 5),
         ),
       );
       state = state.copyWith(currentPosition: position, isLoading: false);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Failed to get location: $e',
-      );
+      // If we already have lastKnown, don't show error immediately unless both failed
+      if (state.currentPosition == null) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Failed to get location: $e',
+        );
+      } else {
+        state = state.copyWith(isLoading: false);
+      }
     }
   }
 

@@ -24,6 +24,11 @@ class Facility {
   final String? reviewedBy;
   final DateTime? reviewedAt;
   final String? imageUrl;
+  final DateTime? lastVerifiedAt;
+  final DateTime? nextVerificationDue;
+  final double? reporterLatitude;
+  final double? reporterLongitude;
+  final double? reporterAccuracy;
 
   Facility({
     required this.id,
@@ -46,6 +51,11 @@ class Facility {
     this.reviewedBy,
     this.reviewedAt,
     this.imageUrl,
+    this.lastVerifiedAt,
+    this.nextVerificationDue,
+    this.reporterLatitude,
+    this.reporterLongitude,
+    this.reporterAccuracy,
   });
 
   factory Facility.fromJson(Map<String, dynamic> json) {
@@ -77,6 +87,15 @@ class Facility {
           ? (json['reviewedAt'] as Timestamp).toDate()
           : null,
       imageUrl: json['imageUrl'] as String?,
+      lastVerifiedAt: json['lastVerifiedAt'] != null
+          ? (json['lastVerifiedAt'] as Timestamp).toDate()
+          : null,
+      nextVerificationDue: json['nextVerificationDue'] != null
+          ? (json['nextVerificationDue'] as Timestamp).toDate()
+          : null,
+      reporterLatitude: (json['reporterLatitude'] as num?)?.toDouble(),
+      reporterLongitude: (json['reporterLongitude'] as num?)?.toDouble(),
+      reporterAccuracy: (json['reporterAccuracy'] as num?)?.toDouble(),
     );
   }
 
@@ -97,13 +116,20 @@ class Facility {
       'address': address,
       'status': status,
       'submittedBy': submittedBy,
-      'submittedAt': submittedAt != null
-          ? Timestamp.fromDate(submittedAt!)
-          : null,
+      'submittedAt': submittedAt != null ? Timestamp.fromDate(submittedAt!) : null,
       'rejectionReason': rejectionReason,
       'reviewedBy': reviewedBy,
       'reviewedAt': reviewedAt != null ? Timestamp.fromDate(reviewedAt!) : null,
       'imageUrl': imageUrl,
+      'lastVerifiedAt': lastVerifiedAt != null
+          ? Timestamp.fromDate(lastVerifiedAt!)
+          : null,
+      'nextVerificationDue': nextVerificationDue != null
+          ? Timestamp.fromDate(nextVerificationDue!)
+          : null,
+      'reporterLatitude': reporterLatitude,
+      'reporterLongitude': reporterLongitude,
+      'reporterAccuracy': reporterAccuracy,
     };
   }
 }

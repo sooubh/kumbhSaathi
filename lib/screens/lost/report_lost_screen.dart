@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:logger/logger.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/firebase_service.dart';
@@ -55,6 +57,11 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
   String? _selectedGender;
   XFile? _selectedImage;
   bool _isLoading = false;
+  
+  double? _lastSeenLat;
+  double? _lastSeenLng;
+  String _locationSource = 'manual';
+  String? _locationAddress;
 
   final _repository = LostPersonRepository();
   final List<String> _genderOptions = ['Male', 'Female', 'Other'];
@@ -127,6 +134,58 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
     }
   }
 
+  Future<void> _useLiveLocation() async {
+    setState(() => _isLoading = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw 'Location permissions denied';
+        }
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+      );
+
+      _lastSeenLat = position.latitude;
+      _lastSeenLng = position.longitude;
+      _locationSource = 'live_location';
+
+      // Reverse geocode
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          _locationAddress = "${p.name}, ${p.subLocality}, ${p.locality}";
+          _locationController.text = _locationAddress!;
+        } else {
+          _locationController.text = "GPS: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
+        }
+      } catch (e) {
+        _locationController.text = "GPS: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}";
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Live location captured!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('GPS Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _submitReport() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -140,6 +199,10 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
         age: int.tryParse(_ageController.text) ?? 0,
         gender: _selectedGender ?? 'Unknown',
         lastSeenLocation: _locationController.text.trim(),
+        lastSeenLat: _lastSeenLat,
+        lastSeenLng: _lastSeenLng,
+        lastSeenAddress: _locationAddress,
+        source: _locationSource,
         description: _descriptionController.text.trim(),
         reportedAt: DateTime.now(),
         reportedBy: FirebaseService.currentUserId ?? 'anonymous',
@@ -375,7 +438,35 @@ class _ReportLostScreenState extends ConsumerState<ReportLostScreen> {
                       hint: 'e.g. Sangam Ghat, Sector 4',
                       controller: _locationController,
                       prefixIcon: Icons.location_on,
+                      onChanged: (val) {
+                        if (_locationSource == 'live_location') {
+                          setState(() => _locationSource = 'manual');
+                        }
+                      },
+                      suffixIcon: TextButton(
+                        onPressed: _isLoading ? null : _useLiveLocation,
+                        child: Text(
+                          'Use Live GPS',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryBlue,
+                          ),
+                        ),
+                      ),
                     ),
+                    if (_locationSource == 'live_location')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, left: 4),
+                        child: Text(
+                          '📍 Current GPS Active',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.success,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 16),
 
                     // Guardian Info

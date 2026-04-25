@@ -128,4 +128,5 @@ class FirestoreCollections {
   static const String facilityRoutes = 'facility_routes';
   static const String emergencyAlerts = 'emergency_alerts';
   static const String settings = 'settings';
+  static const String verificationRequests = 'verification_requests';
 }
