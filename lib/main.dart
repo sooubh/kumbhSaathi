@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'core/services/firebase_service.dart';
+import 'core/config/ai_config.dart';
 
 import 'core/services/notification_service.dart';
 import 'core/services/offline_map_service.dart';
@@ -22,6 +23,9 @@ void main() async {
 
   // Initialize Firebase
   await FirebaseService.initialize();
+
+  // Initialize AI Models Configuration
+  await AIConfig.initializeModels();
 
   // Initialize mobile-only services
   if (!kIsWeb) {

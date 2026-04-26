@@ -16,7 +16,7 @@ class GeminiService {
   void initialize() {
     try {
       _model = GenerativeModel(
-        model: AIConfig.modelName,
+        model: AIConfig.bestTextModel,
         apiKey: AIConfig.apiKey,
       );
       _logger.i('GeminiService initialized');
@@ -41,16 +41,18 @@ class GeminiService {
     _logger.i('New chat session started');
   }
 
+  final TextChatService _textChatService = TextChatService();
+
   /// Send a message to Gemini and get a response
   Future<String> sendMessage(String message) async {
-    if (_model == null) initialize();
-    if (_chatSession == null) startChat();
-
     try {
-      final response = await _chatSession!.sendMessage(Content.text(message));
-      return response.text ?? "I'm sorry, I couldn't understand that.";
+      final response = await _textChatService.sendMessage(message);
+      return response.content;
     } catch (e) {
       _logger.e('Error sending message to Gemini: $e');
+      if (e.toString().contains('429')) {
+        return "The assistant is very busy right now. Please try again in a few seconds.";
+      }
       return "I'm having trouble connecting to the network right now.";
     }
   }

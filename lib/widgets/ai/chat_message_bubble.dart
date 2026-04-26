@@ -59,7 +59,7 @@ class ChatMessageBubble extends StatelessWidget {
                     ],
                   ),
                   child: Text(
-                    message.content,
+                    _cleanContent(message.content),
                     style: TextStyle(
                       fontSize: 14.5,
                       height: 1.4,
@@ -112,5 +112,10 @@ class ChatMessageBubble extends StatelessWidget {
         color: isUser ? AppColors.primaryOrange : AppColors.primaryBlue,
       ),
     );
+  }
+
+  String _cleanContent(String content) {
+    // Strips [en], [hi], etc tags from the beginning of the message
+    return content.replaceAll(RegExp(r'^\[[a-z]{2}\]\s*'), '').trim();
   }
 }

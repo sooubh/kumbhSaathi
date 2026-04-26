@@ -1,12 +1,64 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'env.dart';
 
 /// AI Configuration for Gemini Integration
 class AIConfig {
-  // Model configuration
-  static const String modelName = 'models/gemini-2.0-flash-exp';
+  // Default fallback models
+  static String bestLiveModel = 'models/gemini-2.0-flash-exp';
+  static String bestTextModel = 'models/gemini-2.0-flash-exp';
+
+  static bool _modelsInitialized = false;
 
   static String get apiKey {
     return Env.geminiApiKey.trim();
+  }
+
+  /// Initialize and discover the best available models
+  static Future<void> initializeModels() async {
+    if (_modelsInitialized) return;
+
+    try {
+      final url = 'https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey';
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final models = (data['models'] as List<dynamic>?) ?? [];
+
+        final names = models.map((m) => m['name'] as String).toList();
+
+        // 1. Pick Live API Model
+        // Priority: 3.1-flash-live > 2.5-flash-live > 2.0-flash > 1.5-flash
+        if (names.contains('models/gemini-3.1-flash-live-preview')) {
+          bestLiveModel = 'models/gemini-3.1-flash-live-preview';
+        } else if (names.contains('models/gemini-2.5-flash-live-preview')) {
+          bestLiveModel = 'models/gemini-2.5-flash-live-preview';
+        } else if (names.contains('models/gemini-2.0-flash')) {
+          bestLiveModel = 'models/gemini-2.0-flash';
+        } else if (names.contains('models/gemini-1.5-flash')) {
+          bestLiveModel = 'models/gemini-1.5-flash';
+        } else if (names.contains('models/gemini-2.0-flash-exp')) {
+          bestLiveModel = 'models/gemini-2.0-flash-exp';
+        }
+
+        // 2. Pick Text Model
+        // Priority: 2.0-flash > 1.5-flash
+        if (names.contains('models/gemini-2.0-flash')) {
+          bestTextModel = 'models/gemini-2.0-flash';
+        } else if (names.contains('models/gemini-1.5-flash')) {
+          bestTextModel = 'models/gemini-1.5-flash';
+        } else if (names.contains('models/gemini-2.0-flash-exp')) {
+          bestTextModel = 'models/gemini-2.0-flash-exp';
+        }
+        
+        print('🤖 AI Models initialized: Live=$bestLiveModel, Text=$bestTextModel');
+      }
+    } catch (e) {
+      print('⚠️ Failed to discover models, using defaults: $e');
+    } finally {
+      _modelsInitialized = true;
+    }
   }
 
   static String get wsUrl {

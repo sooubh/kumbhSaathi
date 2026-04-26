@@ -9,7 +9,7 @@ import '../config/ai_config.dart';
 /// Uses WebSocket for bidirectional communication (Audio Streaming)
 class RealtimeChatService {
   final _logger = Logger();
-  static const String _liveModel = AIConfig.modelName;
+  static String get _liveModel => AIConfig.bestLiveModel;
 
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;

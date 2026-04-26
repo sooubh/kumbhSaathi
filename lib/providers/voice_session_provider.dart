@@ -6,7 +6,11 @@ import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:audio_session/audio_session.dart' as audio_session;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:flutter_tts/flutter_tts.dart';
+import '../core/config/ai_config.dart';
 import '../core/services/realtime_chat_service.dart';
+import '../core/services/text_chat_service.dart';
 import 'auth_provider.dart';
 import 'location_provider.dart';
 import 'language_provider.dart';
@@ -22,12 +26,16 @@ class VoiceSessionState {
   final String text;
   final String? errorMessage;
   final bool isConnected;
+  final bool isFallbackMode;
+  final bool isRetrying;
 
   const VoiceSessionState({
     this.status = VoiceState.initial,
     this.text = '',
     this.errorMessage,
     this.isConnected = false,
+    this.isFallbackMode = false,
+    this.isRetrying = false,
   });
 
   VoiceSessionState copyWith({
@@ -36,12 +44,16 @@ class VoiceSessionState {
     String? errorMessage,
     bool clearError = false,
     bool? isConnected,
+    bool? isFallbackMode,
+    bool? isRetrying,
   }) {
     return VoiceSessionState(
       status: status ?? this.status,
       text: text ?? this.text,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       isConnected: isConnected ?? this.isConnected,
+      isFallbackMode: isFallbackMode ?? this.isFallbackMode,
+      isRetrying: isRetrying ?? this.isRetrying,
     );
   }
 }
@@ -58,6 +70,10 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final RealtimeChatService _realtimeService = RealtimeChatService();
+  final TextChatService _textChatService = TextChatService();
+  final stt.SpeechToText _speechToText = stt.SpeechToText();
+  final FlutterTts _flutterTts = FlutterTts();
+
   final Logger _logger = Logger(
     printer: PrettyPrinter(methodCount: 0),
     level: Level.warning,
@@ -85,6 +101,10 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
 
   // Prevents state updates after dispose
   bool _disposed = false;
+
+  // Track last input to avoid duplicates
+  String _lastFallbackInput = '';
+  DateTime? _lastInputTime;
 
   // ---------------------------------------------------------------------------
   // Audio session — configured ONCE per session, never during recording
@@ -180,16 +200,35 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
         }
       }
 
-      // --- 3. Connect WebSocket ---
+      // --- 3. Discover and Initialize Models ---
+      await AIConfig.initializeModels();
+
+      // --- 4. Connect WebSocket ---
       final userProfile = _ref.read(currentProfileProvider);
       final location = _ref.read(locationProvider).valueOrNull;
       final language = _ref.read(languageProvider);
 
-      await _realtimeService.connect(
-        userProfile: userProfile,
-        location: location,
-        appLanguage: language.locale.languageCode,
-      );
+      try {
+        await _realtimeService.connect(
+          userProfile: userProfile,
+          location: location,
+          appLanguage: language.locale.languageCode,
+        );
+      } catch (e) {
+        final errorMsg = e.toString();
+        if (errorMsg.contains('429') || errorMsg.contains('RESOURCE_EXHAUSTED')) {
+          _logger.w('⚠️ Live API quota exhausted, using fallback mode.');
+          _safeSetState(state.copyWith(
+            status: VoiceState.error, 
+            errorMessage: 'AI Live Quota exhausted. Switching to stable mode...',
+          ));
+          await Future.delayed(const Duration(seconds: 2));
+        } else {
+          _logger.w('Realtime connection failed: $e');
+        }
+        await _switchToFallbackMode();
+        return;
+      }
 
       // --- 4. Wire up all streams ---
       _audioSub = _realtimeService.audioStream.listen(_onAudioChunk);
@@ -236,6 +275,7 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
         state.copyWith(
           status: VoiceState.listening,
           isConnected: true,
+          isFallbackMode: false,
           text: 'Listening...',
           clearError: true,
         ),
@@ -248,6 +288,144 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
           errorMessage: 'Failed to connect: $e',
         ),
       );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fallback Mode (Text AI + STT + TTS)
+  // ---------------------------------------------------------------------------
+  Future<void> _switchToFallbackMode() async {
+    _safeSetState(state.copyWith(status: VoiceState.connecting, text: 'Entering fallback mode...'));
+
+    try {
+      bool available = await _speechToText.initialize(
+        onError: (val) {
+          _logger.e('STT Error: ${val.errorMsg}');
+          // KEY FIX: Don't show error screen for 'no_match' (user didn't say anything)
+          if (val.errorMsg == 'error_no_match' || val.errorMsg == 'error_speech_timeout') {
+            _logger.d('🔇 No speech detected, staying in listening mode.');
+            _returnToListening();
+            return;
+          }
+          
+          _safeSetState(state.copyWith(
+            status: VoiceState.error,
+            errorMessage: 'Mic issue: ${val.errorMsg}',
+          ));
+        },
+        onStatus: (val) {
+          _logger.d('STT Status: $val');
+        },
+      );
+
+      if (!available) {
+        throw Exception('Speech Recognition not available on this device.');
+      }
+
+      await _flutterTts.setLanguage('en-US'); // Will be updated by detection
+      await _flutterTts.setSpeechRate(0.5);
+
+      _safeSetState(
+        state.copyWith(
+          status: VoiceState.listening,
+          isConnected: true,
+          isFallbackMode: true,
+          text: 'Listening (Live mode unavailable)...',
+          clearError: true,
+        ),
+      );
+
+      _startSttListening();
+    } catch (e) {
+      _logger.e('Fallback mode initialization failed: $e');
+      _safeSetState(
+        state.copyWith(
+          status: VoiceState.error,
+          errorMessage: 'Voice assistant unavailable. Error: $e',
+        ),
+      );
+    }
+  }
+
+  void _startSttListening() async {
+    if (!state.isFallbackMode || !_speechToText.isAvailable) return;
+
+    final language = _ref.read(languageProvider);
+
+    await _speechToText.listen(
+      onResult: (result) {
+        if (result.finalResult) {
+          _handleFallbackInput(result.recognizedWords);
+        } else {
+          _safeSetState(state.copyWith(text: result.recognizedWords));
+        }
+      },
+      localeId: language.locale.languageCode,
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 3),
+      partialResults: true,
+    );
+  }
+
+  Future<void> _handleFallbackInput(String input) async {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return;
+
+    // 1. Optimization: Prevent parallel requests if already speaking
+    if (state.status == VoiceState.speaking && !state.isRetrying) {
+      _logger.d('⏳ Assistant is already speaking/thinking, skipping input.');
+      return;
+    }
+
+    // 2. Optimization: Avoid duplicate triggers (debounce/duplicate check)
+    final now = DateTime.now();
+    if (_lastFallbackInput == trimmed && 
+        _lastInputTime != null && 
+        now.difference(_lastInputTime!).inSeconds < 2) {
+      _logger.d('⏩ Skipping duplicate input: $trimmed');
+      return;
+    }
+    _lastFallbackInput = trimmed;
+    _lastInputTime = now;
+
+    _safeSetState(state.copyWith(status: VoiceState.speaking, text: 'Thinking...'));
+
+    try {
+      final userProfile = _ref.read(currentProfileProvider);
+      final location = _ref.read(locationProvider).valueOrNull;
+      final language = _ref.read(languageProvider);
+
+      final response = await _textChatService.sendMessage(
+        trimmed,
+        userProfile: userProfile,
+        location: location,
+        appLanguage: language.locale.languageCode,
+      );
+
+      final cleanText = response.content.replaceAll(RegExp(r'\[[a-z]{2}\]\s*'), '').trim();
+      _safeSetState(state.copyWith(text: cleanText, isRetrying: false));
+
+      await _flutterTts.speak(cleanText);
+      await _flutterTts.awaitSpeakCompletion(true);
+      
+      _returnToListening();
+    } catch (e) {
+      _logger.e('Fallback chat error: $e');
+      
+      final errorMsg = e.toString();
+      bool is429 = errorMsg.contains('rate-limited') || errorMsg.contains('429');
+
+      _safeSetState(state.copyWith(
+        status: VoiceState.error, 
+        errorMessage: is429 ? errorMsg : 'Connection issue. Please try again.',
+        isRetrying: false,
+      ));
+      
+      // AUTO-RECOVERY: Return to listening after 5 seconds to keep the flow alive
+      await Future.delayed(const Duration(seconds: 5));
+      if (!_disposed && state.status == VoiceState.error) {
+        _returnToListening();
+      }
     }
   }
 
@@ -339,11 +517,14 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
   }
 
   void _returnToListening() {
-    if (!_disposed && state.isConnected) {
-      _safeSetState(
-        state.copyWith(status: VoiceState.listening, text: 'Listening...'),
-      );
-      // Mic stream is still running — no restart needed
+    if (_disposed || !state.isConnected) return;
+
+    _safeSetState(
+      state.copyWith(status: VoiceState.listening, text: 'Listening...', clearError: true),
+    );
+
+    if (state.isFallbackMode) {
+      _startSttListening();
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../data/models/conversation_message.dart';
 import '../core/config/ai_config.dart';
+import '../core/services/text_chat_service.dart';
 import 'auth_provider.dart';
 import 'location_provider.dart';
 import 'language_provider.dart';
@@ -53,10 +54,7 @@ class TextChatState {
 class TextChatNotifier extends StateNotifier<TextChatState> {
   final Ref _ref;
 
-  // In-memory conversation history sent to the API on every turn
-  // (gives the model multi-turn context)
-  final List<Map<String, dynamic>> _history = [];
-
+  final TextChatService _textChatService = TextChatService();
   bool _disposed = false;
 
   TextChatNotifier(this._ref) : super(const TextChatState());
@@ -80,27 +78,22 @@ class TextChatNotifier extends StateNotifier<TextChatState> {
       ),
     );
 
-    // 2. Append to history (Gemini expects alternating user/model turns)
-    _history.add({
-      'role': 'user',
-      'parts': [
-        {'text': trimmed}
-      ],
-    });
-
     try {
-      final response = await _callGemini();
+      final userProfile = _ref.read(currentProfileProvider);
+      final location = _ref.read(locationProvider).valueOrNull;
+      final language = _ref.read(languageProvider);
+
+      final response = await _textChatService.sendMessage(
+        trimmed,
+        userProfile: userProfile,
+        location: location,
+        appLanguage: language.locale.languageCode,
+      );
 
       if (_disposed) return;
 
       // 3. Add the assistant reply
-      final assistantMsg = ConversationMessage.assistant(response);
-      _history.add({
-        'role': 'model',
-        'parts': [
-          {'text': response}
-        ],
-      });
+      final assistantMsg = response;
 
       _safeSetState(
         state.copyWith(
@@ -112,9 +105,6 @@ class TextChatNotifier extends StateNotifier<TextChatState> {
     } catch (e) {
       if (_disposed) return;
 
-      // Roll back history on failure so the next send isn't confused
-      if (_history.isNotEmpty) _history.removeLast();
-
       _safeSetState(
         state.copyWith(
           isLoading: false,
@@ -122,95 +112,21 @@ class TextChatNotifier extends StateNotifier<TextChatState> {
           error: _friendlyError(e),
         ),
       );
+    } finally {
+      if (!_disposed) {
+        _safeSetState(state.copyWith(isLoading: false, isTyping: false));
+      }
     }
   }
 
   void clearChat() {
-    _history.clear();
+    _textChatService.clearHistory();
     _safeSetState(const TextChatState());
   }
 
   void clearError() => _safeSetState(state.copyWith(clearError: true));
 
-  // ---------------------------------------------------------------------------
-  // Gemini REST call — generateContent (single-turn with history)
-  // ---------------------------------------------------------------------------
-
-  Future<String> _callGemini() async {
-    final apiKey = AIConfig.apiKey;
-    if (apiKey.isEmpty) {
-      throw Exception('Gemini API key is not configured.');
-    }
-
-    // Read context providers (safe here — this method is always called from sendMessage
-    // while the notifier is alive)
-    final userProfile = _ref.read(currentProfileProvider);
-    final location = _ref.read(locationProvider).valueOrNull;
-    final language = _ref.read(languageProvider);
-
-    final systemPrompt = AIConfig.getSystemPrompt(
-      userProfile: userProfile,
-      location: location,
-      appLanguage: language.locale.languageCode,
-    );
-
-    final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/${AIConfig.modelName}:generateContent?key=$apiKey',
-    );
-
-    final body = jsonEncode({
-      'system_instruction': {
-        'parts': [
-          {'text': systemPrompt}
-        ],
-      },
-      'contents': _history,
-      'generationConfig': {
-        'temperature': 0.7,
-        'maxOutputTokens': 1024,
-        'topP': 0.95,
-      },
-      'safetySettings': [
-        {'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_NONE'},
-        {'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_NONE'},
-        {
-          'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-          'threshold': 'BLOCK_NONE'
-        },
-        {
-          'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
-          'threshold': 'BLOCK_NONE'
-        },
-      ],
-    });
-
-    final response = await http
-        .post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: body,
-        )
-        .timeout(const Duration(seconds: 30));
-
-    if (response.statusCode != 200) {
-      final decoded = jsonDecode(response.body);
-      final msg = decoded['error']?['message'] ?? 'HTTP ${response.statusCode}';
-      throw Exception('Gemini API error: $msg');
-    }
-
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final candidates = decoded['candidates'] as List?;
-    if (candidates == null || candidates.isEmpty) {
-      throw Exception('Gemini returned no candidates.');
-    }
-
-    final parts = candidates.first['content']?['parts'] as List?;
-    if (parts == null || parts.isEmpty) {
-      throw Exception('Gemini returned an empty response.');
-    }
-
-    return (parts.first['text'] as String? ?? '').trim();
-  }
+  // _callGemini method removed in favor of TextChatService
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -218,6 +134,12 @@ class TextChatNotifier extends StateNotifier<TextChatState> {
 
   String _friendlyError(Object e) {
     final msg = e.toString();
+    
+    // Pass through already friendly messages from TextChatService
+    if (msg.contains('rate-limited') || msg.contains('temporarily busy')) {
+      return msg.replaceAll('Exception: ', '');
+    }
+
     if (msg.contains('SocketException') || msg.contains('Connection')) {
       return 'No internet connection. Please check your network.';
     }
