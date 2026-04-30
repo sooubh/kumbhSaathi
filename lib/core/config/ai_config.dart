@@ -3,10 +3,28 @@ import 'package:http/http.dart' as http;
 import 'env.dart';
 
 /// AI Configuration for Gemini Integration
+///
+/// Audio spec (from official Gemini Live API docs):
+///   Input  → 16 kHz, mono, 16-bit PCM little-endian  ("audio/pcm;rate=16000")
+///   Output → 24 kHz, mono, 16-bit PCM little-endian
 class AIConfig {
-  // Default fallback models
-  static String bestLiveModel = 'models/gemini-2.0-flash-exp';
-  static String bestTextModel = 'models/gemini-2.0-flash-exp';
+  // -------------------------------------------------------------------------
+  // Audio constants — match the Gemini Live API specification exactly
+  // -------------------------------------------------------------------------
+  static const int inputSampleRate = 16000;   // mic → Gemini
+  static const int outputSampleRate = 24000;  // Gemini → speaker
+  static const int audioChannels = 1;
+  static const int audioBitDepth = 16;
+  static const String inputMimeType = 'audio/pcm;rate=$inputSampleRate';
+
+  /// Voice name for the Live API TTS (matches Python reference "Zephyr")
+  static const String voiceName = 'Zephyr';
+
+  // -------------------------------------------------------------------------
+  // Default fallback models (GA versions with actual free-tier quota)
+  // -------------------------------------------------------------------------
+  static String bestLiveModel = 'models/gemini-3.1-flash-live-preview';
+  static String bestTextModel = 'models/gemini-2.5-flash';
 
   static bool _modelsInitialized = false;
 
@@ -20,7 +38,7 @@ class AIConfig {
 
     try {
       final url = 'https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey';
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -29,36 +47,44 @@ class AIConfig {
         final names = models.map((m) => m['name'] as String).toList();
 
         // 1. Pick Live API Model
-        // Priority: 3.1-flash-live > 2.5-flash-live > 2.0-flash > 1.5-flash
+        // Priority: 3.1-flash-live > 2.5-flash-live > 2.0-flash-live > 2.0-flash
         if (names.contains('models/gemini-3.1-flash-live-preview')) {
           bestLiveModel = 'models/gemini-3.1-flash-live-preview';
         } else if (names.contains('models/gemini-2.5-flash-live-preview')) {
           bestLiveModel = 'models/gemini-2.5-flash-live-preview';
+        } else if (names.contains('models/gemini-2.0-flash-live-001')) {
+          bestLiveModel = 'models/gemini-2.0-flash-live-001';
         } else if (names.contains('models/gemini-2.0-flash')) {
           bestLiveModel = 'models/gemini-2.0-flash';
-        } else if (names.contains('models/gemini-1.5-flash')) {
-          bestLiveModel = 'models/gemini-1.5-flash';
-        } else if (names.contains('models/gemini-2.0-flash-exp')) {
-          bestLiveModel = 'models/gemini-2.0-flash-exp';
         }
 
-        // 2. Pick Text Model
-        // Priority: 2.0-flash > 1.5-flash
-        if (names.contains('models/gemini-2.0-flash')) {
+        // 2. Pick Text Model (generateContent)
+        // Priority: 2.5-flash (GA, has quota) > 2.5-pro > 2.0-flash > 1.5-flash
+        if (names.contains('models/gemini-2.5-flash')) {
+          bestTextModel = 'models/gemini-2.5-flash';
+        } else if (names.contains('models/gemini-2.5-pro')) {
+          bestTextModel = 'models/gemini-2.5-pro';
+        } else if (names.contains('models/gemini-2.0-flash')) {
           bestTextModel = 'models/gemini-2.0-flash';
         } else if (names.contains('models/gemini-1.5-flash')) {
           bestTextModel = 'models/gemini-1.5-flash';
-        } else if (names.contains('models/gemini-2.0-flash-exp')) {
-          bestTextModel = 'models/gemini-2.0-flash-exp';
         }
-        
+
         print('🤖 AI Models initialized: Live=$bestLiveModel, Text=$bestTextModel');
+        print('🤖 Available models: ${names.take(15).join(", ")}');
+      } else {
+        print('⚠️ Model discovery failed (HTTP ${response.statusCode}), using defaults');
       }
     } catch (e) {
       print('⚠️ Failed to discover models, using defaults: $e');
     } finally {
       _modelsInitialized = true;
     }
+  }
+
+  /// Force re-discovery (e.g. after quota error on a specific model)
+  static void resetModelDiscovery() {
+    _modelsInitialized = false;
   }
 
   static String get wsUrl {

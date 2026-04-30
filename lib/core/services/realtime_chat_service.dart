@@ -1,12 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data'; // Added for Uint8List
+import 'dart:typed_data';
 import 'package:logger/logger.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../config/ai_config.dart';
 
 /// Service to handle Real-time interaction with Gemini Multimodal Live API
-/// Uses WebSocket for bidirectional communication (Audio Streaming)
+/// Uses WebSocket for bidirectional communication (Audio Streaming).
+///
+/// Protocol reference (from Python SDK + official docs):
+///   1. Connect to WS endpoint
+///   2. Send a `setup` message with model + generationConfig + systemInstruction
+///   3. Wait for `setupComplete`
+///   4. Stream audio via `realtime_input.media_chunks` at 16 kHz PCM
+///   5. Receive audio at 24 kHz PCM via serverContent.modelTurn.parts[].inlineData
 class RealtimeChatService {
   final _logger = Logger();
   static String get _liveModel => AIConfig.bestLiveModel;
@@ -50,7 +57,7 @@ class RealtimeChatService {
     dynamic userProfile,
     dynamic location,
     String? appLanguage,
-    List<String> responseModalities = const ['AUDIO', 'TEXT'],
+    List<String> responseModalities = const ['AUDIO'],
   }) async {
     if (_isConnected) return;
 
@@ -103,7 +110,7 @@ class RealtimeChatService {
 
       // 4. Wait for setupComplete before streaming audio.
       await _setupCompleter!.future.timeout(
-        const Duration(seconds: 12),
+        const Duration(seconds: 15),
         onTimeout: () {
           throw TimeoutException('Timed out waiting for setupComplete from Live API.');
         },
@@ -144,13 +151,14 @@ class RealtimeChatService {
   }
 
   /// Send user AUDIO chunk to the model
+  /// Input must be 16 kHz, mono, 16-bit PCM (as per API spec)
   void sendAudioChunk(Uint8List audioData) {
     if (!_isConnected || _channel == null) return;
     final encoded = base64Encode(audioData);
     final message = {
       'realtime_input': {
         'media_chunks': [
-          {'mime_type': 'audio/pcm;rate=24000', 'data': encoded}
+          {'mime_type': AIConfig.inputMimeType, 'data': encoded}
         ],
       },
     };
@@ -161,8 +169,16 @@ class RealtimeChatService {
   void sendTextMessage(String text) {
     if (!_isConnected || _channel == null) return;
     final message = {
-      'realtime_input': {
-        'text': text,
+      'client_content': {
+        'turns': [
+          {
+            'role': 'user',
+            'parts': [
+              {'text': text}
+            ],
+          }
+        ],
+        'turn_complete': true,
       },
     };
     _channel!.sink.add(jsonEncode(message));
@@ -171,8 +187,6 @@ class RealtimeChatService {
   /// Internal: Handle incoming WebSocket messages
   void _handleMessage(dynamic data) {
     try {
-      _logger.d('📩 Message Type: ${data.runtimeType}');
-
       Map<String, dynamic> json;
       if (data is String) {
         json = jsonDecode(data);
@@ -240,7 +254,6 @@ class RealtimeChatService {
         // B. Turn Complete
         if ((serverContent['turnComplete'] ?? serverContent['turn_complete']) ==
             true) {
-          // Logic for end of turn (signal to flush buffer if needed)
           _turnCompleteController.add(null);
         }
 
@@ -265,7 +278,7 @@ class RealtimeChatService {
       else if (json.containsKey('toolCall') || json.containsKey('tool_call')) {
         _logger.d('🛠️ Tool Call Received: ${json['toolCall'] ?? json['tool_call']}');
       }
-      // 3. Handle error
+      // 4. Handle error
       else if (json.containsKey('error')) {
         final error = json['error'];
         final message = error is Map ? '${error['message'] ?? 'Unknown server error'}' : '$error';
@@ -281,11 +294,17 @@ class RealtimeChatService {
   }
 
   /// Internal: Send setup message to configure the session
+  ///
+  /// Format matches the official Gemini Live API protocol (camelCase JSON):
+  ///   setup.model
+  ///   setup.generationConfig.responseModalities
+  ///   setup.generationConfig.speechConfig (with voice)
+  ///   setup.systemInstruction
   void _sendSetupMessage({
     dynamic userProfile,
     dynamic location,
     String? appLanguage,
-    List<String> responseModalities = const ['AUDIO', 'TEXT'],
+    List<String> responseModalities = const ['AUDIO'],
   }) {
     if (_channel == null) return;
 
@@ -295,13 +314,21 @@ class RealtimeChatService {
       appLanguage: appLanguage,
     );
 
+    // Matches the working Python reference configuration exactly
     final setup = {
       'setup': {
         'model': _liveModel,
-        'generation_config': {
-          'response_modalities': ['AUDIO', 'TEXT'],
+        'generationConfig': {
+          'responseModalities': responseModalities,
+          'speechConfig': {
+            'voiceConfig': {
+              'prebuiltVoiceConfig': {
+                'voiceName': AIConfig.voiceName,
+              },
+            },
+          },
         },
-        'system_instruction': {
+        'systemInstruction': {
           'parts': [
             {'text': systemPrompt},
           ],
@@ -310,6 +337,6 @@ class RealtimeChatService {
     };
 
     _channel!.sink.add(jsonEncode(setup));
-    _logger.d('⚙️ Setup message sent (Modalities: $responseModalities)');
+    _logger.d('⚙️ Setup message sent (Model: $_liveModel, Modalities: $responseModalities, Voice: ${AIConfig.voiceName})');
   }
 }

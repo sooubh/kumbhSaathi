@@ -201,6 +201,7 @@ class TextChatService {
     }
     return null;
   }
+
   void _cleanupRequest() {
     _isRequestInProgress = false;
     _busyTimeout?.cancel();

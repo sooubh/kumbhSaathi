@@ -1,6 +1,7 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:logger/logger.dart';
 import '../config/ai_config.dart';
+import 'text_chat_service.dart';
 
 /// Service to handle interactions with Google's Gemini AI
 class GeminiService {
@@ -19,7 +20,7 @@ class GeminiService {
         model: AIConfig.bestTextModel,
         apiKey: AIConfig.apiKey,
       );
-      _logger.i('GeminiService initialized');
+      _logger.i('GeminiService initialized with model: ${AIConfig.bestTextModel}');
     } catch (e) {
       _logger.e('Error initializing GeminiService: $e');
     }
@@ -50,7 +51,7 @@ class GeminiService {
       return response.content;
     } catch (e) {
       _logger.e('Error sending message to Gemini: $e');
-      if (e.toString().contains('429')) {
+      if (e.toString().contains('429') || e.toString().contains('rate-limited')) {
         return "The assistant is very busy right now. Please try again in a few seconds.";
       }
       return "I'm having trouble connecting to the network right now.";

@@ -441,10 +441,10 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
     }
 
     final stream = await _audioRecorder.startStream(
-      const RecordConfig(
+      RecordConfig(
         encoder: AudioEncoder.pcm16bits,
-        sampleRate: 24000,
-        numChannels: 1,
+        sampleRate: AIConfig.inputSampleRate,  // 16 kHz — matches Gemini Live input spec
+        numChannels: AIConfig.audioChannels,
       ),
     );
 
@@ -533,9 +533,9 @@ class VoiceSessionNotifier extends StateNotifier<VoiceSessionState> {
   // Format: 24 kHz, mono, 16-bit PCM (Gemini Live output spec)
   // ---------------------------------------------------------------------------
   Uint8List _buildWav(Uint8List pcmData) {
-    const int sampleRate = 24000;
-    const int channels = 1;
-    const int bitDepth = 16;
+    const int sampleRate = AIConfig.outputSampleRate;  // 24 kHz — Gemini output spec
+    const int channels = AIConfig.audioChannels;
+    const int bitDepth = AIConfig.audioBitDepth;
     final int byteRate = sampleRate * channels * (bitDepth ~/ 8);
     final int blockAlign = channels * (bitDepth ~/ 8);
     final int dataSize = pcmData.length;
